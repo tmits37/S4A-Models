@@ -234,7 +234,6 @@ def main():
         class_weights = {LINEAR_ENCODER[k]: v for k, v in CLASS_WEIGHTS.items()}
     else:
         class_weights = None
-
     if args.model == 'convlstm':
         args.img_size = [int(dim) for dim in args.img_size]
 
@@ -389,6 +388,7 @@ def main():
         path_val = root_path_coco / 'coco_val.json'
         path_test = root_path_coco / 'coco_test.json'
 
+    print("start_Traun")
     if args.train:
         # Create Data Modules
         dm = PADDataModule(
@@ -417,6 +417,7 @@ def main():
 
         # TRAINING
         # Setup to multi-GPUs
+        print('setup gpu')
         dm.setup('fit')
 
         # DEFAULT CALLBACKS used by the Trainer
@@ -432,9 +433,11 @@ def main():
         )
 
         tb_logger = pl_loggers.TensorBoardLogger(run_path / 'tensorboard')
-
+        print('my ddp')
+        from time import time
+        tic = time()
         my_ddp = DDPPlugin(find_unused_parameters=True)
-
+        print('define trainer')
         trainer = pl.Trainer(gpus=args.num_gpus,
                              num_nodes=args.num_nodes,
                              progress_bar_refresh_rate=20,
@@ -452,6 +455,8 @@ def main():
                              strategy='ddp' if args.num_gpus > 1 else None,
                              plugins=[my_ddp]
                              )
+        delta_time = time() - tic
+        print('time for sanity check: {:.2f}'.format(delta_time))
 
         # Train model
         trainer.fit(model, datamodule=dm)

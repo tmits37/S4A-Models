@@ -145,6 +145,7 @@ class PADDataset(Dataset):
 
         self.bands = sorted(bands)
         self.num_bands = len(self.bands)
+        self.bands_idx = self.get_bands_idx()
         self.binary_labels = binary_labels
 
         self.return_masks = return_masks
@@ -220,8 +221,16 @@ class PADDataset(Dataset):
         self.num_buckets = len(pd.date_range(start=f'2020-01-01', end=f'2021-01-01', freq=self.group_freq)) - 1
 
         self.saved_medians = saved_medians
-        self.medians_dir = Path(f'logs/medians/{prefix}_medians_{group_freq}_{"".join(self.bands)}/{mode}')
+        self.medians_dir = Path(f'logs/medians/{mode}')
 
+
+    def get_bands_idx(self):
+        band_keys = list(BANDS.keys())
+        idx = []
+        for b in self.bands:
+            i = band_keys.index(b)
+            idx.append(i)
+        return idx
 
     def get_padding_offset(self):
         img_size_x = self.patch_height
@@ -365,6 +374,7 @@ class PADDataset(Dataset):
 
         for i, bin_idx in enumerate(range(start_month, end_month)):
             median = np.load(median_files[bin_idx]).astype(self.medians_dtype)
+            median = median[self.bands_idx]
             medians[i] = median.copy()
 
         # Read labels

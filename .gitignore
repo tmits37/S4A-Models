@@ -4,6 +4,9 @@ __pycache__
 utils/__pycache__
 utils/settings/__pycache__
 models/__pycache__
+dataset/
+logs/
+coco_files/
 
 .ipynb_checkpoints
 

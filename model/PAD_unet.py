@@ -245,6 +245,7 @@ class UNet(pl.LightningModule):
 
         label = batch['labels']  # (B, H, W)
         label = label.to(torch.long)
+        # print('inputs: {}, labels: {}'.format(inputs.shape, label.shape))
 
         # Concatenate time series along channels dimension
         b, t, c, h, w = inputs.size()

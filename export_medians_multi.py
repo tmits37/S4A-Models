@@ -22,7 +22,7 @@ BANDS = {
 # Extract patches based on this band
 REFERENCE_BAND = 'B02'
 
-def process_patch(out_path, mode, num_buckets, root_coco_path, bands, padded_patch_height,
+def process_patch(out_path, mode, num_buckets, root_coco_path, data_path, bands, padded_patch_heigh,
                   padded_patch_width, medians_dtype, label_dtype, group_freq, output_size,
                   pad_top, pad_bot, pad_left, pad_right, patch):
     patch_id, patch_info = patch
@@ -33,10 +33,11 @@ def process_patch(out_path, mode, num_buckets, root_coco_path, bands, padded_pat
     #     return
 
     # Calculate medians
-    netcdf = netCDF4.Dataset(root_coco_path / patch_info['file_name'], 'r')
+    netcdf = netCDF4.Dataset(data_path / patch_info['file_name'], 'r')
     medians = get_medians(netcdf, 0, num_buckets, group_freq, bands, padded_patch_height,
                           padded_patch_width, output_size, pad_top, pad_bot,
                           pad_left, pad_right, medians_dtype)
+    # shape: (bins, bands, height, width)
 
     num_bins, num_bands = medians.shape[:2]
 
@@ -259,8 +260,8 @@ def calculate_subpatches(output_size):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Compute and export median files for a given S2 dataset')
-    parser.add_argument('--data', type=str, default='dataset/netcdf', required=False,
-                        help='Path to the netCDF files. Default "dataset/netcdf/".')
+    parser.add_argument('--data', type=str, default='dataset', required=False,
+                        help='Path to the netCDF files. Default "dataset/".')
     parser.add_argument('--root_coco_path', type=str, default='coco_files/', required=False,
                         help='Root path for coco file. Default "coco_files/".')
     parser.add_argument('--prefix_coco', type=str, default=None, required=False,
@@ -314,10 +315,10 @@ if __name__ == '__main__':
             coco_path = root_coco_path / f'coco_{mode}.json'
         coco = COCO(coco_path)
 
-        func = partial(process_patch, out_path, mode, num_buckets, root_coco_path,
+        func = partial(process_patch, out_path, mode, num_buckets, root_coco_path, data_path,
                        bands, padded_patch_height, padded_patch_width, medians_dtype,
                        label_dtype, args.group_freq, output_size, pad_top, pad_bot, pad_left, pad_right)
 
-        process_map(func, list(coco.imgs.items()), max_workers=args.num_workers)
+        process_map(func, list(coco.imgs.items()), max_workers=args.num_workers, chunksize=1)
 
     print('Medians saved.\n')
