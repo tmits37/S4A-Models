@@ -225,7 +225,7 @@ class PADDataset(Dataset):
 
 
     def get_bands_idx(self):
-        band_keys = list(BANDS.keys())
+        band_keys = sorted(list(BANDS.keys()))
         idx = []
         for b in self.bands:
             i = band_keys.index(b)
