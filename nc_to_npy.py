@@ -154,13 +154,12 @@ if __name__ == '__main__':
         bands = ['B05', 'B06', 'B07', 'B8A', 'B11', 'B12']
         height, width = int(IMG_SIZE//2), int(IMG_SIZE//2)
 
-    print(f'shape of output: ({len(bands)}, {num_buckets}, {height}, {height})')
+    print(f'shape of output: ({num_buckets}, {len(bands)}, {height}, {height})')
     print('band_keys: ', bands)
     print(f'Saving into: {out_path}.')
     print(f'\nStart process...')
 
-    # for mode in ['train', 'val', 'test']:
-    for mode in ['val']:
+    for mode in ['train', 'val', 'test']:
         if args.prefix_coco is not None:
             coco_path = os.path.join(root_coco_path, f'{args.prefix_coco}_coco_{mode}.json')
         else:
@@ -180,13 +179,14 @@ if __name__ == '__main__':
                      bandmod=bandmod,
                      patch=coim)
             )
-        # patch = list(coco.imgs.items())[0]
-        # process_patch(out_path, mode, data_path, bandmod, patch)
-
         pool = Pool(args.num_workers)
         for _ in tqdm(pool.imap_unordered(map_function, input_args), total=len(list(coco.imgs.items()))):
             pass
         pool.close()
         pool.join()
 
-    print('Medians saved.\n')
+    print('Dataset saved.\n')
+    """
+        python3 nc_to_npy.py --prefix_coco exp1_patches5000_strat --out_path dataset/newdata \
+                             --band_mode nrgb --num_workers 20
+    """
