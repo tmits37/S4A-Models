@@ -9,6 +9,7 @@ import pytorch_lightning as pl
 
 from .settings.config import RANDOM_SEED, IMG_SIZE
 from .PAD_dataset import PADDataset
+from .npy_dataset import NpyPADDataset
 
 # Set seed for everything
 pl.seed_everything(RANDOM_SEED)
@@ -181,83 +182,30 @@ class PADDataModule(pl.LightningDataModule):
         # https://github.com/cocodataset/cocoapi/tree/master/PythonAPI/pycocotools
 
         if stage == 'fit':
-            # Setup datasets for training
-            coco_train = COCO(self.path_train)
-            coco_val = COCO(self.path_val)
-
-            self.dataset_train = PADDataset(
-                root_path_netcdf=self.netcdf_path,
-                coco=coco_train,
-                # transforms=transforms,
-                group_freq=self.group_freq,
-                compression=self.compression,
-                prefix=self.prefix,
-                bands=self.bands,
-                linear_encoder=self.linear_encoder,
-                saved_medians=self.saved_medians,
-                window_len=self.window_len,
-                fixed_window=self.fixed_window,
-                requires_norm=self.requires_norm,
-                return_masks=self.return_masks,
-                clouds=self.clouds,
-                cirrus=self.cirrus,
-                shadow=self.shadow,
-                snow=self.snow,
-                output_size=self.output_size,
-                binary_labels=self.binary_labels,
-                mode='train',
-                return_parcels=self.return_parcels
-            )
-
-            self.dataset_eval = PADDataset(
-                root_path_netcdf=self.netcdf_path,
-                coco=coco_val,
-                group_freq=self.group_freq,
-                compression=self.compression,
-                prefix=self.prefix,
-                bands=self.bands,
-                linear_encoder=self.linear_encoder,
-                saved_medians=self.saved_medians,
-                window_len=self.window_len,
-                fixed_window=self.fixed_window,
-                requires_norm=self.requires_norm,
-                return_masks=self.return_masks,
-                clouds=self.clouds,
-                cirrus=self.cirrus,
-                shadow=self.shadow,
-                snow=self.snow,
-                output_size=self.output_size,
-                binary_labels=self.binary_labels,
-                mode='val',
-                return_parcels=self.return_parcels
-        )
+            self.dataset_train = NpyPADDataset(root_dir=self.netcdf_path,
+                                               band_mode='nrgb',
+                                               start_month=4,
+                                               end_month=10,
+                                               mode='train',
+                                               return_parcels=self.return_parcels
+                                               )
+            self.dataset_eval = NpyPADDataset(root_dir=self.netcdf_path,
+                                              band_mode='nrgb',
+                                              start_month=4,
+                                              end_month=10,
+                                              mode='val',
+                                              return_parcels=self.return_parcels
+                                              )
 
         else:
-            # Setup datasets for testing
-            coco_test = COCO(self.path_test)
-
-            self.dataset_test = PADDataset(
-                root_path_netcdf=self.netcdf_path,
-                coco=coco_test,
-                group_freq=self.group_freq,
-                compression=self.compression,
-                prefix=self.prefix,
-                bands=self.bands,
-                linear_encoder=self.linear_encoder,
-                saved_medians=self.saved_medians,
-                window_len=self.window_len,
-                fixed_window=self.fixed_window,
-                requires_norm=self.requires_norm,
-                return_masks=self.return_masks,
-                clouds=self.clouds,
-                cirrus=self.cirrus,
-                shadow=self.shadow,
-                snow=self.snow,
-                output_size=self.output_size,
-                binary_labels=self.binary_labels,
-                mode='test',
-                return_parcels=self.return_parcels
-            )
+            self.dataset_test = NpyPADDataset(root_dir=self.netcdf_path,
+                                              band_mode='nrgb',
+                                              start_month=4,
+                                              end_month=10,
+                                              output_size=None, # (H, W) = (366, 366)
+                                              mode='test',
+                                              return_parcels=self.return_parcels
+                                              )
 
     def train_dataloader(self):
         return DataLoader(
