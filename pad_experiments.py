@@ -13,6 +13,7 @@ from model.PAD_convLSTM import ConvLSTM
 from model.PAD_tempCNN import TempCNN
 from model.PAD_convSTAR import ConvSTAR
 from model.PAD_unet import UNet
+from model.utae import UTAE
 
 import pytorch_lightning as pl
 from pytorch_lightning import loggers as pl_loggers
@@ -114,7 +115,7 @@ def main():
                              help='Perform a dev test run with this model')
 
     parser.add_argument('--model', type=str, required=True,
-                             choices=['convlstm', 'tempcnn', 'convstar', 'unet'],
+                             choices=['convlstm', 'tempcnn', 'convstar', 'unet', 'utae'],
                              help='Model to use. One of [\'convlstm\', \'tempcnn\', \'convstar\', \'unet\']',
                              )
 
@@ -379,6 +380,48 @@ def main():
                                                  linear_encoder=LINEAR_ENCODER,
                                                  crop_encoding=crop_encoding)
 
+    elif args.model == 'utae':
+        results_path = create_model_log_path(log_path, prefix, args.model)
+        run_path, resume_from_checkpoint, max_epoch, init_epoch = \
+            resume_or_start(results_path, args.resume, args.train, args.num_epochs, args.load_checkpoint)
+        
+        if args.resume is not None:
+            # Restore optimizer's learning rate
+            with open(run_path / 'lrs.txt', 'r') as f:
+                for line in f:
+                    epoch_lr = line.strip().split(': ')
+                    if int(epoch_lr[0]) == init_epoch:
+                        init_learning_rate = float(epoch_lr[1])
+
+            model = UTAE(run_path, 
+                        LINEAR_ENCODER,
+                        learning_rate=init_learning_rate,
+                        parcel_loss=args.parcel_loss,
+                        class_weights=class_weights,
+                        input_size=4
+                        )
+        else:
+            model = UTAE(run_path, 
+                        LINEAR_ENCODER,
+                        parcel_loss=args.parcel_loss,
+                        class_weights=class_weights,
+                        input_size=4
+                        )
+
+        if not args.train:
+            # Load the model for testing
+            crop_encoding_rev = {v: k for k, v in CROP_ENCODING.items()}
+            crop_encoding = {k: crop_encoding_rev[k] for k in LINEAR_ENCODER.keys() if k != 0}
+            crop_encoding[0] = 'Background/Other'
+
+            model = UNet.load_from_checkpoint(resume_from_checkpoint,
+                                                  map_location=torch.device('cpu'),
+                                                  run_path=run_path,
+                                                  linear_encoder=LINEAR_ENCODER,
+                                                  crop_encoding=crop_encoding,
+                                                  checkpoint_epoch=init_epoch)
+
+
     if args.prefix_coco is not None:
         path_train = root_path_coco / f'{args.prefix_coco}_coco_train.json'
         path_val = root_path_coco / f'{args.prefix_coco}_coco_val.json'
@@ -433,7 +476,6 @@ def main():
         )
 
         tb_logger = pl_loggers.TensorBoardLogger(run_path / 'tensorboard')
-        print('my ddp')
         from time import time
         tic = time()
         my_ddp = DDPPlugin(find_unused_parameters=True)
@@ -493,7 +535,7 @@ def main():
 
         trainer = pl.Trainer(gpus=args.num_gpus,
                              num_nodes=args.num_nodes,
-                             progress_bar_refresh_rate=20,
+                             progress_bar_refresh_rate=1,
                              min_epochs=1,
                              max_epochs=2,
                              precision=32,
