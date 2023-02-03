@@ -126,24 +126,12 @@ def main():
 
     parser.add_argument('--binary_labels', action='store_true', default=False, required=False,
                              help='Map categories to 0 background, 1 parcel. Default False')
-
-    parser.add_argument('--root_path_coco', type=str, default='coco_files/', required=False,
-                             help='root path until coco file. Default: "coco_files/"')
-    parser.add_argument('--prefix_coco', type=str, default=None, required=False,
-                             help='The prefix to use for the COCO file. Default none.')
-
-    parser.add_argument('--netcdf_path', type=str, default='dataset/netcdf',
-                        help='The path containing the netcdf files. Default "dataset/netcdf".')
-
-    parser.add_argument('--prefix', type=str, default=None, required=False,
-                             help='The prefix to use for dumping data files. If none, the current timestamp is used')
+    parser.add_argument('--root_dir', type=str, default='dataset',
+                        help='The path containing the npy datasets. Default "dataset".')
+    parser.add_argument('--work_dir', type=str, help='the dir to save logs and models')
 
     parser.add_argument('--load_checkpoint', type=str, required=False,
                              help='The checkpoint path to load for model testing.')
-
-    parser.add_argument('--group_freq', type=str, required=False, default='1MS',
-                             help='The frequency to use for binning. All Pandas offset aliases are supported.'
-                                  'Check: https://pandas.pydata.org/pandas-docs/stable/user_guide/timeseries.html#timeseries-offset-aliases ')
 
     parser.add_argument('--num_epochs', type=int, default=10, required=False,
                              help='Number of epochs. Default 10')
@@ -151,30 +139,15 @@ def main():
                              help='The batch size. Default 4')
     parser.add_argument('--lr', type=float, default=1e-1, required=False,
                              help='Starting learning rate. Default 1e-1')
-    parser.add_argument('--window_len', type=int, default=6, required=False,
-                             help='The length of the rolling window to be used. Default 6')
-    parser.add_argument('--fixed_window', action='store_true', default=False, required=False,
-                            help='Use a fixed window including months 4 (April) to 9 (September).')
 
-    parser.add_argument('--bands', nargs='+', default=sorted(list(BANDS.keys())),
+    parser.add_argument('--band_mode', default='nrgb', choices=["nrgb", "rdeg"],
                              help='The image bands to use. Must be space separated')
-    parser.add_argument('--saved_medians', action='store_true', default=False, required=False,
-                             help='Precompute and export the image medians')
-    parser.add_argument('--img_size', nargs='+', required=False,
+    parser.add_argument('--img_size', nargs='+', required=False, default=(64,64),
                              help='The size of the subpatch to use as model input. Must be space separated')
-    parser.add_argument('--requires_norm', action='store_true', default=False, required=False,
-                             help='Normalize data to 0-1 range. Default False')
-
-    parser.add_argument('--return_masks', action='store_true', default=False, required=False,
-                             help='Use hollstein masks for various weather conditions. Default False')
-    parser.add_argument('--clouds', action='store_true', default=False, required=False,
-                             help='hollstein mask for clouds. Default False')
-    parser.add_argument('--cirrus', action='store_true', default=False, required=False,
-                             help='hollstein mask for cirrus. Default False')
-    parser.add_argument('--shadow', action='store_true', default=False, required=False,
-                             help='hollstein mask for shadow. Default False')
-    parser.add_argument('--snow', action='store_true', default=False, required=False,
-                             help='hollstein mask for snow. Default False')
+    parser.add_argument('--scenario', type=int, choices=[1, 2], default=1,
+                             help='scenario') 
+    parser.add_argument('--start_month', type=int, default=4, choices=range(0, 12))
+    parser.add_argument('--end_month', type=int, default=10, choices=range(1, 14))
 
     parser.add_argument('--num_workers', type=int, default=6, required=False,
                              help='Number of workers to work on dataloader. Default 6')
@@ -197,15 +170,7 @@ def main():
             print(f'argument img_size should be castable to int but instead "{args.img_size}" was given!')
             exit(1)
 
-    # Normalize paths for different OSes
-    root_path_coco = Path(args.root_path_coco)
-
-    netcdf_path = Path(args.netcdf_path)
-
-    # Check existence of data folder
-    if not root_path_coco.is_dir():
-        print(f'{font_colors.RED}Coco path doesn\'t exist!{font_colors.ENDC}')
-        exit(1)
+    root_dir = Path(args.root_dir)
 
     # Create folders for saving and/or retrieving useful files for dataloaders
     log_path = Path('logs')
@@ -215,12 +180,11 @@ def main():
     loaders_path.mkdir(exist_ok=True, parents=True)
 
     # Determine prefix
-    if args.prefix is None:
-        # No prefix given, use current timestamp
+    if not args.work_dir:
         timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
         prefix = timestamp
     else:
-        prefix = args.prefix
+        prefix = args.work_dir
 
     # Trainer callbacks
     callbacks = []
@@ -422,48 +386,27 @@ def main():
                                                   checkpoint_epoch=init_epoch)
 
 
-    if args.prefix_coco is not None:
-        path_train = root_path_coco / f'{args.prefix_coco}_coco_train.json'
-        path_val = root_path_coco / f'{args.prefix_coco}_coco_val.json'
-        path_test = root_path_coco / f'{args.prefix_coco}_coco_test.json'
-    else:
-        path_train = root_path_coco / 'coco_train.json'
-        path_val = root_path_coco / 'coco_val.json'
-        path_test = root_path_coco / 'coco_test.json'
+    # Create Data Modules
+    dm = PADDataModule(
+        root_dir=args.root_dir,
+        scenario=args.scenario,
+        band_mode=args.band_mode,
+        linear_encoder=LINEAR_ENCODER,
+        start_month=args.start_month,
+        end_month=args.end_month,
+        batch_size=args.batch_size,
+        num_workers=args.num_workers,
+        binary_labels=args.binary_labels,
+        return_parcels=args.parcel_loss
+    )
 
     if args.train:
-        # Create Data Modules
-        dm = PADDataModule(
-            netcdf_path=netcdf_path,
-            path_train=path_train,
-            path_val=path_val,
-            group_freq=args.group_freq,
-            prefix=prefix,
-            bands=args.bands,
-            linear_encoder=LINEAR_ENCODER,
-            saved_medians=args.saved_medians,
-            window_len=args.window_len,
-            fixed_window=args.fixed_window,
-            requires_norm=args.requires_norm,
-            return_masks=args.return_masks,
-            clouds=args.clouds,
-            cirrus=args.cirrus,
-            shadow=args.shadow,
-            snow=args.snow,
-            output_size=args.img_size,
-            batch_size=args.batch_size,
-            num_workers=args.num_workers,
-            binary_labels=args.binary_labels,
-            return_parcels=args.parcel_loss
-        )
-
         # TRAINING
         # Setup to multi-GPUs
         dm.setup('fit')
 
         # DEFAULT CALLBACKS used by the Trainer
         # early_stopping = EarlyStopping('val_loss')
-
         callbacks.append(
             ModelCheckpoint(
                 dirpath=run_path / 'checkpoints',
@@ -495,31 +438,6 @@ def main():
         # Train model
         trainer.fit(model, datamodule=dm)
     else:
-        # Create Data Module
-        dm = PADDataModule(
-            netcdf_path=netcdf_path,
-            path_test=path_test,
-            group_freq=args.group_freq,
-            prefix=prefix,
-            bands=args.bands,
-            linear_encoder=LINEAR_ENCODER,
-            saved_medians=args.saved_medians,
-            window_len=args.window_len,
-            fixed_window=args.fixed_window,
-            requires_norm=args.requires_norm,
-            return_masks=args.return_masks,
-            clouds=args.clouds,
-            cirrus=args.cirrus,
-            shadow=args.shadow,
-            snow=args.snow,
-            output_size=args.img_size,
-            batch_size=args.batch_size,
-            num_workers=args.num_workers,
-            binary_labels=args.binary_labels,
-            return_parcels=args.parcel_loss
-        )
-
-        # TRAINING
         # Setup to multi-GPUs
         dm.setup('test')
 

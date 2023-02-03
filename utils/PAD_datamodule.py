@@ -23,26 +23,12 @@ class PADDataModule(pl.LightningDataModule):
 
     def __init__(
             self,
-            netcdf_path: Union[str, Path] = Path(),
-            path_train: Union[str, Path] = Path(),
-            path_val: Union[str, Path] = Path(),
-            path_test: Union[str, Path] = Path(),
-            bands: list = None,
-            transforms=None,
-            compression: str = 'gzip',
-            group_freq: str = '1MS',
-            saved_medians: bool = False,
+            root_dir: Union[str, Path] = Path(),
+            scenario: int = 1,
+            band_mode: str = 'nrgb',
             linear_encoder: dict = None,
-            prefix: str = None,
-            window_len: int = 12,
-            fixed_window: bool = False,
-            requires_norm: bool = True,
-            return_masks: bool = False,
-            clouds: bool = True,
-            cirrus: bool = True,
-            shadow: bool = True,
-            snow: bool = True,
-            output_size: tuple = None,
+            start_month: int = 4,
+            end_month: int = 10,
             batch_size: int = 64,
             num_workers: int = 4,
             binary_labels: bool = False,
@@ -51,54 +37,12 @@ class PADDataModule(pl.LightningDataModule):
         '''
         Parameters
         ----------
-        netcdf_path: Path or str
-            The path containing the training data (netCDF files).
-        path_train: Path or str
-            The COCO file path containing the training data.
-        path_val: Path or str
-            The COCO file path containing the validation data.
-        path_test: Path or str
-            The COCO file path containing the testing data.
         bands: list of str, default None
             A list of the bands to use. If None, then all available bands are
             taken into consideration. Note that the bands are given in a two-digit
             format, e.g. '01', '02', '8A', etc.
-        transforms: list of pytorch Transforms, default None
-            A list of pytorch Transforms to use. To be implemented.
-        compression: str, default 'gzip'
-            The type of compression to use for the produced index file.
-        group_freq: str, default '1MS'
-            The frequency to use for binning. All Pandas offset aliases are supported.
-            Check: https://pandas.pydata.org/pandas-docs/stable/user_guide/timeseries.html#timeseries-offset-aliases
-        saved_medians: boolean, default False
-            Whether to precompute and save all medians. This saves on computation
-            time during batching.
         linear_encoder: dict, default None
             Maps arbitrary crop_ids to range 0-len(unique(crop_id)).
-        prefix: str, default None
-            A prefix to use for all exported files. If None, then the current
-            timestamp is used.
-        window_len: integer, default 12
-            If a value is passed, then a rolling window of this length is applied
-            over the data. E.g. if `window_len` = 6 and `group_freq` = '1M', then
-            a 6-month rolling window will be applied and each batch will contain
-            6 months of training data and the corresponding label.
-        fixed_window: boolean, default False
-            If True, then a fixed window including months 4 (April) to 9 (September) is used
-            instead of a rolling one.
-        requires_norm: boolean, default True
-            If True, then it normalizes the dataset to [0, 1] range.
-        return_masks: boolean, default False
-            based: https://github.com/sentinel-hub/custom-scripts/tree/master/sentinel-2/hollstein
-            If True, returns Logical OR of all hollstein masks, see below.
-        clouds: boolean, default True
-            If True and return_masks=True, returns mask for clouds
-        cirrus: boolean, default True
-            If True and return_masks=True, returns mask for cirrus
-        shadow: boolean, default True
-            If True and return_masks=True, returns mask for shadow
-        snow: boolean, default True
-            If True and return_masks=True, returns mask for snow
         output_size: tuple of int, default None
             If a tuple (H, W) is given, then the output images will be divided
             into non-overlapping subpatches of size (H, W). Otherwise, the images
@@ -115,96 +59,54 @@ class PADDataModule(pl.LightningDataModule):
 
         super().__init__()
 
-        self.netcdf_path = netcdf_path
-
-        self.path_train = Path(path_train)
-        self.path_val = Path(path_val)
-        self.path_test = Path(path_test)
-
+        self.root_dir = root_dir
         self.batch_size = batch_size
         self.num_workers = num_workers
         self.binary_labels = binary_labels
 
         # Initialize parameters required for Patches Dataset
-        self.prefix = prefix
-        self.bands = bands
+        self.band_mode = band_mode
         self.linear_encoder = linear_encoder
-        self.saved_medians = saved_medians
-        self.window_len = window_len
-        self.fixed_window = fixed_window
-        self.requires_norm = requires_norm
-        self.return_masks = return_masks
-        self.clouds = clouds
-        self.cirrus = cirrus
-        self.shadow = shadow
-        self.snow = snow
-        self.output_size = output_size
-        self.group_freq = group_freq
-        self.compression = compression
         self.return_parcels = return_parcels
 
-        self.num_bands = len(bands)
+        self.start_month = start_month
+        self.end_month = end_month
+        self.scenario = scenario
+
         self.img_size = IMG_SIZE
-
-        if output_size is None:
-            self.dims = (self.batch_size, self.window_len, self.num_bands, self.img_size, self.img_size)
-        else:
-            self.dims = (self.batch_size, self.window_len, self.num_bands, self.output_size[0], self.output_size[1])
-
-        self.dataset_train = None
-        self.dataset_eval = None
-        self.dataset_test = None
-
 
     def setup(self, stage=None):
         # called on every GPU
         # Create train/val/test loaders
         assert stage in ['fit', 'test'], f'Stage : "{stage}" must be fit or test!'
 
-        # Check everything is ok
         if stage == 'fit':
-            assert self.path_train is not None, \
-                f'Train path cannot be None when training'
-
-            assert self.path_val is not None, \
-                f'Validation path cannot be None when training'
-
-            assert self.path_train.is_file(), f'"{self.path_train}" is not a valid file.'
-            assert self.path_val.is_file(), f'"{self.path_val}" is not a valid file.'
-
-        else:
-            assert self.path_test is not None, \
-                f'Test path cannot be None when testing.'
-
-            assert self.path_test.is_file(), f'"{self.path_test}" is not a valid file.'
-
-        # Load to COCO Objects using COCO API
-        # https://github.com/cocodataset/cocoapi/tree/master/PythonAPI/pycocotools
-
-        if stage == 'fit':
-            self.dataset_train = NpyPADDataset(root_dir=self.netcdf_path,
-                                               band_mode='nrgb',
-                                               start_month=4,
-                                               end_month=10,
+            self.dataset_train = NpyPADDataset(root_dir=self.root_dir,
+                                               band_mode=self.band_mode,
+                                               start_month=self.start_month,
+                                               end_month=self.end_month,
                                                mode='train',
-                                               return_parcels=self.return_parcels
+                                               return_parcels=self.return_parcels,
+                                               scenario=self.scenario,
                                                )
-            self.dataset_eval = NpyPADDataset(root_dir=self.netcdf_path,
-                                              band_mode='nrgb',
-                                              start_month=4,
-                                              end_month=10,
+            self.dataset_eval = NpyPADDataset(root_dir=self.root_dir,
+                                              band_mode=self.band_mode,
+                                              start_month=self.start_month,
+                                              end_month=self.end_month,
                                               mode='val',
-                                              return_parcels=self.return_parcels
+                                              return_parcels=self.return_parcels,
+                                              scenario=self.scenario,
                                               )
 
         else:
-            self.dataset_test = NpyPADDataset(root_dir=self.netcdf_path,
-                                              band_mode='nrgb',
-                                              start_month=4,
-                                              end_month=10,
+            self.dataset_test = NpyPADDataset(root_dir=self.root_dir,
+                                              band_mode=self.band_mode,
+                                              start_month=self.start_month,
+                                              end_month=self.end_month,
                                               output_size=None, # (H, W) = (366, 366)
                                               mode='test',
-                                              return_parcels=self.return_parcels
+                                              return_parcels=self.return_parcels,
+                                              scenario=self.scenario
                                               )
 
     def train_dataloader(self):
