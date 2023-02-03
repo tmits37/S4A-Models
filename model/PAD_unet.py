@@ -184,6 +184,7 @@ class UNet(EncoderDecoder):
         layers.append(nn.Conv2d(feats, self.num_discrete_labels, kernel_size=1))
         layers.append(nn.LogSoftmax(dim=1))
         self.layers = nn.ModuleList(layers)
+        self.learning_rate = learning_rate
 
         self.save_hyperparameters()
 
