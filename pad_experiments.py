@@ -14,6 +14,7 @@ from model.PAD_tempCNN import TempCNN
 from model.PAD_convSTAR import ConvSTAR
 from model.PAD_unet import UNet
 from model.utae import UTAE
+from model.SimVP import SimVP
 
 import pytorch_lightning as pl
 from pytorch_lightning import loggers as pl_loggers
@@ -115,8 +116,8 @@ def main():
                              help='Perform a dev test run with this model')
 
     parser.add_argument('--model', type=str, required=True,
-                             choices=['convlstm', 'tempcnn', 'convstar', 'unet', 'utae'],
-                             help='Model to use. One of [\'convlstm\', \'tempcnn\', \'convstar\', \'unet\']',
+                             choices=['convlstm', 'tempcnn', 'convstar', 'unet', 'utae', 'simvp'],
+                             help='Model to use. One of [\'convlstm\', \'tempcnn\', \'convstar\', \'unet\', \'simvp\']',
                              )
 
     parser.add_argument('--parcel_loss', action='store_true', default=False, required=False,
@@ -385,6 +386,27 @@ def main():
                                                   crop_encoding=crop_encoding,
                                                   checkpoint_epoch=init_epoch)
 
+    elif args.model == 'simvp':
+
+        results_path = create_model_log_path(log_path, prefix, args.model)
+
+        run_path, resume_from_checkpoint, max_epoch, init_epoch = \
+            resume_or_start(results_path, args.resume, args.train, args.num_epochs, args.load_checkpoint)
+
+        if not args.train:
+            # Load the model for testing
+            crop_encoding_rev = {v: k for k, v in CROP_ENCODING.items()}
+            crop_encoding = {k: crop_encoding_rev[k] for k in LINEAR_ENCODER.keys() if k != 0}
+            crop_encoding[0] = 'Background/Other'
+
+            model = SimVP.load_from_checkpoint(resume_from_checkpoint,
+                                                  map_location=torch.device('cpu'),
+                                                  run_path=run_path,
+                                                  linear_encoder=LINEAR_ENCODER,
+                                                  crop_encoding=crop_encoding,
+                                                  checkpoint_epoch=init_epoch)
+        else: 
+            model = SimVP(LINEAR_ENCODER, n_classes, run_path, class_weights, shape_in = [6, 4, 64, 64], hid_S=16, hid_T=256, N_S=4, N_T=8, incep_ker=[3,5,7,11], groups=8, learning_rate=0.001)
 
     # Create Data Modules
     dm = PADDataModule(
