@@ -378,7 +378,7 @@ def main():
             crop_encoding = {k: crop_encoding_rev[k] for k in LINEAR_ENCODER.keys() if k != 0}
             crop_encoding[0] = 'Background/Other'
 
-            model = UNet.load_from_checkpoint(resume_from_checkpoint,
+            model = UTAE.load_from_checkpoint(resume_from_checkpoint,
                                                   map_location=torch.device('cpu'),
                                                   run_path=run_path,
                                                   linear_encoder=LINEAR_ENCODER,
