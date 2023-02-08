@@ -30,6 +30,25 @@ from .settings.config import RANDOM_SEED, BANDS, IMG_SIZE, REFERENCE_BAND, NORMA
 
 # LINEAR_ENCODER = {val: i + 1 for i, val in enumerate(sorted(SELECTED_CLASSES))}
 # LINEAR_ENCODER[0] = 0
+def min_max_normalize(image, percentile=2):
+    image = image.astype('float32')
+
+    percent_min = np.percentile(image, percentile, axis=(0,1))
+    percent_max = np.percentile(image, 100-percentile, axis=(0,1))
+
+    mask = np.mean(image, axis=2) != 0
+    if image.shape[1] * image.shape[0] - np.sum(mask) > 0:
+        mdata = np.ma.masked_equal(image, 0, copy=False)
+        mdata = np.ma.filled(mdata, np.nan)
+        percent_min = np.nanpercentile(mdata, percentile, axis=(0, 1))
+
+    norm = (image-percent_min) / (percent_max - percent_min)
+    norm[norm<0] = 0
+    norm[norm>1] = 1
+    norm = norm * mask[:,:,np.newaxis]
+    # norm = (norm * 255).astype('uint8') * mask[:,:,np.newaxis]
+
+    return norm
 
 
 class RandomCrop(object):
@@ -103,6 +122,7 @@ class NpyPADDataset(Dataset):
             return_parcels: bool = False,
             mode: str = 'test',
             scenario: int = 1,
+            min_max_normalize: bool = True,
     ) -> None:
         '''
         Args:
@@ -155,6 +175,7 @@ class NpyPADDataset(Dataset):
         self.start_month = start_month - 1
         self.end_month = end_month - 1
         self.linear_encoder = LINEAR_ENCODER
+        self.min_max_normalize = min_max_normalize
 
         self.mode = mode
         self.scenario = scenario
@@ -202,12 +223,22 @@ class NpyPADDataset(Dataset):
 
         return img, ann
 
+    def _normalize(self, img):
+        if self.min_max_normalize:
+            T, C, H, W = img.shape
+            img = img.reshape(T*C, H, W)
+            img = min_max_normalize(img.transpose(1,2,0))
+            img = img.transpose(2,0,1)
+            img = img.reshape(T, C, H, W)
+        else:
+            img = np.divide(img, NORMALIZATION_DIV) #  / 10000
+        return img
     
     def __getitem__(self, idx: int) -> dict:
         img, ann = self.prepare_train_img(idx)
 
         # Normalize data to range [0-1]
-        img = np.divide(img, NORMALIZATION_DIV) #  / 10000
+        img = self._normalize(img)
 
         out = {}
         if self.return_parcels:
