@@ -59,6 +59,8 @@ class Decoder(nn.Module):
     def forward(self, hid, enc1=None):
         for i in range(0,len(self.dec)-1):
             hid = self.dec[i](hid)
+        print(hid.shape)
+        print(enc1.shape)
         Y = self.dec[-1](torch.cat([hid, enc1], dim=1))
         Y = self.readout(Y)
         return Y
@@ -128,7 +130,7 @@ class SimVP(nn.Module):
 '''
 
 class SimVP(pl.LightningModule):
-    def __init__(self, linear_encoder, nclasses, run_path, class_weights=None, crop_encoding=None, checkpoint_epoch=None, shape_in = [6, 4, 64, 64], hid_S=16, hid_T=256, N_S=4, N_T=8, incep_ker=[3,5,7,11], groups=8, learning_rate=0.001):
+    def __init__(self, linear_encoder, run_path, class_weights=None, crop_encoding=None, checkpoint_epoch=None, shape_in = [6, 4, 64, 64], hid_S=16, hid_T=256, N_S=4, N_T=8, incep_ker=[3,5,7,11], groups=8, learning_rate=0.001):
         super(SimVP, self).__init__()
 
         T, C, H, W = shape_in
