@@ -400,14 +400,15 @@ def main():
             crop_encoding[0] = 'Background/Other'
 
             model = SimVP.load_from_checkpoint(resume_from_checkpoint,
-                                                  run_path=run_path,
-                                                  linear_encoder=LINEAR_ENCODER,
-                                                  crop_encoding=crop_encoding,
-                                                  checkpoint_epoch=init_epoch,
-                                                  class_weights = class_weights,
-                                                  )
+                                                    map_location=torch.device('cpu'),
+                                                    run_path=run_path,
+                                                    linear_encoder=LINEAR_ENCODER,
+                                                    crop_encoding=crop_encoding,
+                                                    checkpoint_epoch=init_epoch,
+                                                    class_weights = class_weights
+                                                    )
         else: 
-            model = SimVP(LINEAR_ENCODER, run_path, class_weights, shape_in = [6, 4, 64, 64], hid_S=16, hid_T=256, N_S=4, N_T=8, incep_ker=[3,5,7,11], groups=8, learning_rate=0.001)
+            model = SimVP(run_path, LINEAR_ENCODER,  parcel_loss=args.parcel_loss, class_weights=class_weights, shape_in = [6, 4, 64, 64], hid_S=16, hid_T=256, N_S=4, N_T=8, incep_ker=[3,5,7,11], groups=8, learning_rate=0.001)
 
     # Create Data Modules
     dm = PADDataModule(
