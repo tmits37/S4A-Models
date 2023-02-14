@@ -128,12 +128,11 @@ class SimVP(nn.Module):
 '''
 
 class SimVP(pl.LightningModule):
-    def __init__(self, linear_encoder, run_path, class_weights=None, crop_encoding=None, checkpoint_epoch=None, shape_in = [6, 4, 64, 64], hid_S=16, hid_T=256, N_S=4, N_T=8, incep_ker=[3,5,7,11], groups=8, learning_rate=0.001):
+    def __init__(self, run_path, linear_encoder, learning_rate=1e-3, parcel_loss=True, class_weights=None, crop_encoding=None, checkpoint_epoch=None, shape_in = [6, 4, 64, 64], hid_S=16, hid_T=256, N_S=4, N_T=8, incep_ker=[3,5,7,11], groups=8):
         super(SimVP, self).__init__()
 
         T, C, H, W = shape_in
         
-
         self.run_path = Path(run_path)
 
         self.epoch_train_losses = []
@@ -142,20 +141,32 @@ class SimVP(pl.LightningModule):
         self.avg_val_losses = []
         self.best_loss = None
 
-        self.learning_rate = learning_rate
-        self.linear_encoder = linear_encoder
-
-        class_weights_tensor = torch.tensor([class_weights[k] for k in sorted(class_weights.keys())]).cuda()
-        self.lossfunction = nn.NLLLoss(ignore_index=0, weight=class_weights_tensor)
-
         self.num_discrete_labels = len(set(linear_encoder.values()))
         self.confusion_matrix = torch.zeros([self.num_discrete_labels, self.num_discrete_labels])
 
+        self.learning_rate = learning_rate
+        self.linear_encoder = linear_encoder
+        self.parcel_loss = parcel_loss
+        self.class_weights = class_weights
+        self.checkpoint_epoch = checkpoint_epoch
+        
+        if class_weights is not None:
+            class_weights_tensor = torch.tensor([class_weights[k] for k in sorted(class_weights.keys())]).cuda()
+
+            if self.parcel_loss:
+                self.lossfunction = nn.NLLLoss(ignore_index=0, weight=class_weights_tensor, reduction='sum')
+            else:
+                self.lossfunction = nn.NLLLoss(ignore_index=0, weight=class_weights_tensor)
+        else:
+            if self.parcel_loss:
+                self.lossfunction = nn.NLLLoss(ignore_index=0, reduction='sum')
+            else:
+                self.lossfunction = nn.NLLLoss(ignore_index=0)
+        
         self.enc = Encoder(C, hid_S, N_S)
         self.hid = Mid_Xnet(T*hid_S, hid_T, N_T, incep_ker, groups)
         self.dec = Decoder(hid_S, C, N_S)
         
-        self.checkpoint_epoch = checkpoint_epoch
         self.crop_encoding = crop_encoding
         self.softmax = nn.Sequential(nn.Conv2d(4, self.num_discrete_labels, kernel_size=1),nn.LogSoftmax(dim=1))
 
@@ -185,9 +196,35 @@ class SimVP(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         inputs = batch['medians']  # (B, S, C, H, W)
         label = batch['labels']
+        label = label.to(torch.long)
         pred = self(inputs)
 
-        loss = self.lossfunction(pred, label)
+        if self.parcel_loss:
+            parcels = batch['parcels']  # (B, H, W)
+            parcels_K = parcels[:, None, :, :].repeat(1, pred.size(1), 1, 1)  # (B, K, H, W)
+
+            # Note: a new masked array must be created in order to avoid inplace
+            # operations on the label/pred variables. Otherwise the optimizer
+            # will throw an error because it requires the variables to be unchanged
+            # for gradient computation
+
+            mask = (parcels) & (label != 0)
+            mask_K = (parcels_K) & (label[:, None, :, :].repeat(1, pred.size(1), 1, 1) != 0)
+
+            label_masked = label.clone()
+            label_masked[~mask] = 0
+
+            pred_masked = pred.clone()
+            pred_masked[~mask_K] = 0
+
+            label = label_masked.clone()
+            pred = pred_masked.clone()
+
+            loss = self.lossfunction(pred, label)
+
+            loss = loss / parcels.sum()
+        else:
+            loss = self.lossfunction(pred, label)
 
         # Compute total loss for current batch
         loss_aver = loss.item() * inputs.shape[0]
@@ -198,9 +235,35 @@ class SimVP(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         inputs = batch['medians']  # (B, S, C, H, W)
         label = batch['labels']
-
+        label = label.to(torch.long)
+        
         pred = self(inputs)
-        loss = self.lossfunction(pred, label)
+        if self.parcel_loss:
+            parcels = batch['parcels']  # (B, H, W)
+            parcels_K = parcels[:, None, :, :].repeat(1, pred.size(1), 1, 1)  # (B, K, H, W)
+
+            # Note: a new masked array must be created in order to avoid inplace
+            # operations on the label/pred variables. Otherwise the optimizer
+            # will throw an error because it requires the variables to be unchanged
+            # for gradient computation
+
+            mask = (parcels) & (label != 0)
+            mask_K = (parcels_K) & (label[:, None, :, :].repeat(1, pred.size(1), 1, 1) != 0)
+
+            label_masked = label.clone()
+            label_masked[~mask] = 0
+
+            pred_masked = pred.clone()
+            pred_masked[~mask_K] = 0
+
+            label = label_masked.clone()
+            pred = pred_masked.clone()
+
+            loss = self.lossfunction(pred, label)
+
+            loss = loss / parcels.sum()
+        else:
+            loss = self.lossfunction(pred, label)
 
         # Compute total loss for current batch
         loss_aver = loss.item() * inputs.shape[0]
@@ -209,6 +272,52 @@ class SimVP(pl.LightningModule):
 
         return {'val_loss': loss}
 
+    def test_step(self, batch, batch_idx):
+        inputs = batch['medians']  # (B, S, C, H, W)
+        label = batch['labels'].to(torch.long)
+        if inputs.shape[3] != 64:
+            pred = self.slide_inference(inputs)
+        else:
+            pred = self(inputs)
+
+            # Reverse the logarithm of the LogSoftmax activation
+            pred = torch.exp(pred)
+
+            # Clip predictions larger than the maximum possible label
+            pred = torch.clamp(pred, 0, max(self.linear_encoder.values()))
+
+
+            # Discretize predictions
+            #bins = np.arange(-0.5, sorted(list(self.linear_encoder.values()))[-1] + 0.5, 1)
+            #bins_idx = torch.bucketize(pred, torch.tensor(bins).cuda())
+            #pred_disc = bins_idx - 1
+        
+        if self.parcel_loss:
+            parcels = batch['parcels']  # (B, H, W)
+            parcels_K = parcels[:, None, :, :].repeat(1, pred.size(1), 1, 1)  # (B, K, H, W)
+
+            mask = (parcels) & (label != 0)
+            mask_K = (parcels_K) & (label[:, None, :, :].repeat(1, pred.size(1), 1, 1) != 0)
+            label[~mask] = 0
+            pred[~mask_K] = 0
+
+            pred_sparse = pred.argmax(axis=1)
+
+            label = label.flatten()
+            pred = pred_sparse.flatten()
+
+            # Discretize predictions
+            #bins = np.arange(-0.5, sorted(list(self.linear_encoder.values()))[-1] + 0.5, 1)
+            #bins_idx = torch.bucketize(pred, torch.tensor(bins).cuda())
+            #pred_disc = bins_idx - 1
+        # pred_sparse = pred.argmax(axis=1)
+        # label = label.flatten()
+        # pred = pred_sparse.flatten()
+
+        for i in range(label.shape[0]):
+            self.confusion_matrix[label[i], pred[i]] += 1
+
+        return
 
     def training_epoch_end(self, outputs):
         # Calculate average loss over an epoch
@@ -250,7 +359,6 @@ class SimVP(pl.LightningModule):
         w_grids = max(w_img - w_crop + w_stride - 1, 0) // w_stride + 1
         preds = img.new_zeros((batch_size, num_classes, h_img, w_img))
         count_mat = img.new_zeros((batch_size, 1, h_img, w_img))
-
         # img = img.view(batch_size, -1, h_img, w_img)
 
         for h_idx in range(h_grids):
@@ -263,13 +371,12 @@ class SimVP(pl.LightningModule):
                 x1 = max(x2 - w_crop, 0)
                 crop_img = img[..., y1:y2, x1:x2]
                 # crop_seg_logit = self.encode_decode(crop_img, img_meta)
-
                 crop_seg_logit = self(crop_img).to(torch.long)  # (B, K, H, W)
                 # Reverse the logarithm of the LogSoftmax activation
                 crop_seg_logit = torch.exp(crop_seg_logit)
                 # Clip predictions larger than the maximum possible label
                 crop_seg_logit = torch.clamp(crop_seg_logit, 0, max(self.linear_encoder.values()))
-
+                
                 preds += F.pad(crop_seg_logit,
                                (int(x1), int(preds.shape[3] - x2), int(y1),
                                 int(preds.shape[2] - y2)))
@@ -280,35 +387,7 @@ class SimVP(pl.LightningModule):
         return preds
 
 
-    def test_step(self, batch, batch_idx):
-        inputs = batch['medians']  # (B, S, C, H, W)
-        label = batch['labels']
-
-        if inputs.shape[3] != 64:
-            pred = self.slide_inference(inputs)
-        else:
-            pred = self(inputs)
-
-            # Reverse the logarithm of the LogSoftmax activation
-            pred = torch.exp(pred)
-
-            # Clip predictions larger than the maximum possible label
-            pred = torch.clamp(pred, 0, max(self.linear_encoder.values()))
-
-
-            # Discretize predictions
-            #bins = np.arange(-0.5, sorted(list(self.linear_encoder.values()))[-1] + 0.5, 1)
-            #bins_idx = torch.bucketize(pred, torch.tensor(bins).cuda())
-            #pred_disc = bins_idx - 1
-            
-        pred_sparse = pred.argmax(axis=1)
-        label = label.flatten()
-        pred = pred_sparse.flatten()
-
-        for i in range(label.shape[0]):
-            self.confusion_matrix[label[i], pred[i]] += 1
-
-        return
+    
 
     def test_epoch_end(self, outputs):
         self.confusion_matrix = self.confusion_matrix.cpu().detach().numpy()
