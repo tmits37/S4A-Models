@@ -2,20 +2,9 @@
 # Code taken from:
 #   https://github.com/0zgur0/ms-convSTAR
 
-from pathlib import Path
-import pickle
-import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib.patches import Rectangle
-import seaborn as sns
-
 import torch
 import torch.nn as nn
-from torch.optim import lr_scheduler
-import torch.optim as optim
 from torch.nn import init
-from tensorboardX import SummaryWriter
-import pytorch_lightning as pl
 
 from .encoder_decoder import EncoderDecoder
 
@@ -167,6 +156,9 @@ class ConvSTAR(EncoderDecoder):
         '''
         if not hidden:
             hidden = [None] * self.n_layers
+
+        b, t, c, h, w = x.size()
+        x = x.view(b, -1, h, w)
 
         b, d, h, w = x.shape
         x = x.view(b, -1, self.input_size, h, w)

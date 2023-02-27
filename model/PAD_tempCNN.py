@@ -7,16 +7,11 @@ Code adopted from:
 https://github.com/MarcCoru/crop-type-mapping
 '''
 
-import os
-import numpy as np
-
 import torch
 import torch.nn as nn
 import torch.utils.data
-import pytorch_lightning as pl
+
 from .encoder_decoder import EncoderDecoder
-
-
 
 class Conv1D_BatchNorm_Relu_Dropout(torch.nn.Module):
     def __init__(self, input_dim, hidden_dims, kernel_size=5, drop_probability=0.5):
@@ -97,6 +92,9 @@ class TempCNN(EncoderDecoder):
 
 
     def forward(self,x):
+        b, t, c, h, w = x.size()
+        x = x.view(b, -1, h, w)
+
         x = self.conv_bn_relu1(x)
         x = self.conv_bn_relu2(x)
         x = self.conv_bn_relu3(x)

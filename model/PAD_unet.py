@@ -7,25 +7,13 @@ Code adopted from:
 https://github.com/PyTorchLightning/lightning-bolts/blob/master/pl_bolts/models/vision/unet.py
 '''
 
-import os
-
-import numpy as np
-from tqdm import tqdm
-import copy
 from pathlib import Path
-import pickle
 
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
 from torch.optim import lr_scheduler
 import torch.optim as optim
-from tensorboardX import SummaryWriter
-import pytorch_lightning as pl
-
-import matplotlib.pyplot as plt
-from matplotlib.patches import Rectangle
-import seaborn as sns
 
 from .encoder_decoder import EncoderDecoder
 
@@ -190,6 +178,9 @@ class UNet(EncoderDecoder):
 
 
     def forward(self, x):
+        b, t, c, h, w = x.size()
+        x = x.view(b, -1, h, w)
+
         xi = [self.layers[0](x)]
 
         # Down path

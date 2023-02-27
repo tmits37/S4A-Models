@@ -15,8 +15,6 @@ import torch.nn as nn
 from torch.nn import functional as F
 from torch.optim import lr_scheduler
 import torch.optim as optim
-from torch.nn import init
-from tensorboardX import SummaryWriter
 import pytorch_lightning as pl
 
 
@@ -72,16 +70,11 @@ class EncoderDecoder(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         inputs = batch['medians']  # (B, T, C, H, W)
-
         label = batch['labels']  # (B, H, W)
         label = label.to(torch.long)
-        # print('inputs: {}, labels: {}'.format(inputs.shape, label.shape))
 
-        # Concatenate time series along channels dimension
         b, t, c, h, w = inputs.size()
-        inputs = inputs.view(b, -1, h, w)   # (B, T * C, H, W)
-
-        pred = self(inputs)  # (B, K, H, W)
+        pred = self(inputs)
 
         if self.parcel_loss:
             parcels = batch['parcels']  # (B, H, W)
@@ -115,31 +108,20 @@ class EncoderDecoder(pl.LightningModule):
 
         self.epoch_train_losses.append(loss_aver)
 
-        # torch.nn.utils.clip_grad_value_(self.parameters(), clip_value=10.0)
-
         return {'loss': loss}
 
 
     def validation_step(self, batch, batch_idx):
         inputs = batch['medians']  # (B, T, C, H, W)
-
         label = batch['labels']  # (B, H, W)
         label = label.to(torch.long)
 
-        # Concatenate time series along channels dimension
         b, t, c, h, w = inputs.size()
-        inputs = inputs.view(b, -1, h, w)   # (B, T * C, H, W)
-
         pred = self(inputs)  # (B, K, H, W)
 
         if self.parcel_loss:
             parcels = batch['parcels']  # (B, H, W)
             parcels_K = parcels[:, None, :, :].repeat(1, pred.size(1), 1, 1)  # (B, K, H, W)
-
-            # Note: a new masked array must be created in order to avoid inplace
-            # operations on the label/pred variables. Otherwise the optimizer
-            # will throw an error because it requires the variables to be unchanged
-            # for gradient computation
 
             mask = (parcels) & (label != 0)
             mask_K = (parcels_K) & (label[:, None, :, :].repeat(1, pred.size(1), 1, 1) != 0)
@@ -178,8 +160,6 @@ class EncoderDecoder(pl.LightningModule):
         preds = img.new_zeros((batch_size, num_classes, h_img, w_img))
         count_mat = img.new_zeros((batch_size, 1, h_img, w_img))
 
-        img = img.view(batch_size, -1, h_img, w_img)
-
         for h_idx in range(h_grids):
             for w_idx in range(w_grids):
                 y1 = h_idx * h_stride
@@ -188,14 +168,10 @@ class EncoderDecoder(pl.LightningModule):
                 x2 = min(x1 + w_crop, w_img)
                 y1 = max(y2 - h_crop, 0)
                 x1 = max(x2 - w_crop, 0)
-                crop_img = img[:, :, y1:y2, x1:x2]
-                # crop_seg_logit = self.encode_decode(crop_img, img_meta)
+                crop_img = img[:, :, :, y1:y2, x1:x2]
 
-                crop_seg_logit = self(crop_img).to(torch.long)  # (B, K, H, W)
-                # Reverse the logarithm of the LogSoftmax activation
-                crop_seg_logit = torch.exp(crop_seg_logit)
-                # Clip predictions larger than the maximum possible label
-                crop_seg_logit = torch.clamp(crop_seg_logit, 0, max(self.linear_encoder.values()))
+                crop_seg_logit = self(crop_img)
+                crop_seg_logit = torch.exp(crop_seg_logit) # Reverse the logarithm of the LogSoftmax activation
 
                 preds += F.pad(crop_seg_logit,
                                (int(x1), int(preds.shape[3] - x2), int(y1),
@@ -214,18 +190,9 @@ class EncoderDecoder(pl.LightningModule):
         if inputs.shape[3] != 64:
             pred = self.slide_inference(inputs)
         else:
-
-            # Concatenate time series along channels dimension
             b, t, c, h, w = inputs.size()
-            inputs = inputs.view(b, -1, h, w)   # (B, T * C, H, W)
-
-            pred = self(inputs).to(torch.long)  # (B, K, H, W)
-
-            # Reverse the logarithm of the LogSoftmax activation
-            pred = torch.exp(pred)
-
-            # Clip predictions larger than the maximum possible label
-            pred = torch.clamp(pred, 0, max(self.linear_encoder.values()))
+            pred = self(inputs)  # (B, K, H, W)
+            pred = torch.exp(pred) # Reverse the logarithm of the LogSoftmax activation
 
         if self.parcel_loss:
             parcels = batch['parcels']  # (B, H, W)
@@ -236,18 +203,16 @@ class EncoderDecoder(pl.LightningModule):
             label[~mask] = 0
             pred[~mask_K] = 0
 
-            pred_sparse = pred.argmax(axis=1)
+        pred = pred.argmax(axis=1)
+        # compute confusion_matrix
+        pred = pred.detach().cpu().numpy()
+        label = label.detach().cpu().numpy()
 
-            label = label.flatten()
-            pred = pred_sparse.flatten()
-
-            # Discretize predictions
-            #bins = np.arange(-0.5, sorted(list(self.linear_encoder.values()))[-1] + 0.5, 1)
-            #bins_idx = torch.bucketize(pred, torch.tensor(bins).cuda())
-            #pred_disc = bins_idx - 1
-
-        for i in range(label.shape[0]):
-            self.confusion_matrix[label[i], pred[i]] += 1
+        for class_label in np.unique(label):
+            pr = pred[np.where(label == class_label)]
+            for pred_label in np.unique(pr):
+                cl_pr = np.sum(pr == pred_label)
+                self.confusion_matrix[class_label, pred_label] += cl_pr
 
         return
 

@@ -393,13 +393,26 @@ def main():
         run_path, resume_from_checkpoint, max_epoch, init_epoch = \
             resume_or_start(results_path, args.resume, args.train, args.num_epochs, args.load_checkpoint)
 
+        model = SimVP(run_path, 
+                      LINEAR_ENCODER,
+                      parcel_loss=args.parcel_loss,
+                      class_weights=class_weights,
+                      shape_in = [6, 4, 64, 64],
+                      hid_S=16,
+                      hid_T=256,
+                      N_S=4,
+                      N_T=8,
+                      incep_ker=[3,5,7,11], 
+                      groups=8, 
+                      learning_rate=0.001)
+        
         if not args.train:
             # Load the model for testing
             crop_encoding_rev = {v: k for k, v in CROP_ENCODING.items()}
             crop_encoding = {k: crop_encoding_rev[k] for k in LINEAR_ENCODER.keys() if k != 0}
             crop_encoding[0] = 'Background/Other'
 
-            model = SimVP.load_from_checkpoint(resume_from_checkpoint,
+            model = model.load_from_checkpoint(resume_from_checkpoint,
                                                     map_location=torch.device('cpu'),
                                                     run_path=run_path,
                                                     linear_encoder=LINEAR_ENCODER,
@@ -407,8 +420,6 @@ def main():
                                                     checkpoint_epoch=init_epoch,
                                                     class_weights = class_weights
                                                     )
-        else: 
-            model = SimVP(run_path, LINEAR_ENCODER,  parcel_loss=args.parcel_loss, class_weights=class_weights, shape_in = [6, 4, 64, 64], hid_S=16, hid_T=256, N_S=4, N_T=8, incep_ker=[3,5,7,11], groups=8, learning_rate=0.001)
 
     # Create Data Modules
     dm = PADDataModule(

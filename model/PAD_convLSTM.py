@@ -8,23 +8,12 @@ https://github.com/jhhuang96/ConvLSTM-PyTorch.git
 '''
 
 import os
-
-import numpy as np
-from tqdm import tqdm
-import copy
 from pathlib import Path
-import pickle
 
 import torch
 import torch.nn as nn
 from torch.optim import lr_scheduler
 import torch.optim as optim
-from tensorboardX import SummaryWriter
-import pytorch_lightning as pl
-
-import matplotlib.pyplot as plt
-from matplotlib.patches import Rectangle
-import seaborn as sns
 
 from .encoder_decoder import EncoderDecoder
 
@@ -229,6 +218,9 @@ class ConvLSTM(EncoderDecoder):
 
 
     def forward(self, input):
+
+        b, t, c, h, w = input.size()
+        input = input.view(b, -1, h, w)
         
         b, d, h, w = input.shape
         input = input.view(b, -1, self.input_size, h, w)

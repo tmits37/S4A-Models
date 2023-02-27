@@ -227,7 +227,7 @@ class NpyPADDataset(Dataset):
         if self.min_max_normalize:
             T, C, H, W = img.shape
             img = img.reshape(T*C, H, W)
-            img = min_max_normalize(img.transpose(1,2,0))
+            img = min_max_normalize(img.transpose(1,2,0), percentile=0.5)
             img = img.transpose(2,0,1)
             img = img.reshape(T, C, H, W)
         else:

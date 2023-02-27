@@ -708,9 +708,7 @@ class UTAE(EncoderDecoder):
         self.save_hyperparameters()
 
     def forward(self, x):
-        b, d, h, w = x.shape # B, T*C, H, W
-        x = x.view(b, -1, self.input_size, h, w) # B, T, C, H, W
-
+        b = x.shape[0]
         batch_positions = torch.arange(x.shape[1]).unsqueeze(0).expand(b, -1) # B, T
         batch_positions = batch_positions.to(x.device)
 
