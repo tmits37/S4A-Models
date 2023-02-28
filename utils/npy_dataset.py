@@ -50,6 +50,27 @@ def min_max_normalize(image, percentile=2):
 
     return norm
 
+class SelectRandomStep(object):
+    def __init__(self, start_month, end_month, delta_month=1, ratio=0.5):
+        self.start_month = start_month
+        self.end_month = end_month
+        self.delta_month = delta_month
+        self.ratio = ratio
+
+    def __call__(self, x):
+        # x.shape T, C, H, W
+        idx = np.random.random()
+
+        if idx > self.ratio:
+            x = x[self.start_month:self.end_month]
+
+        else:
+            idx2 = np.random.random()
+            if idx2 > 0.5:
+                x = x[self.start_month-self.delta_month:self.end_month-self.delta_month]
+            else:
+                x = x[self.start_month+self.delta_month:self.end_month+self.delta_month]
+        return x
 
 class RandomCrop(object):
     """샘플데이터를 무작위로 자릅니다.
@@ -90,8 +111,9 @@ class NpyPADDataset(Dataset):
     '''
         ├── dataset
         │   ├── my_dataset
-        │   │   ├── scenario1_filename.json
-        │   │   ├── scenario2_filename.json
+        │   │   ├── scenario1_filename.json (Catalonia(2019, 2020), France(2019) -> Catalonia(2019, 2020), France(2019))
+        │   │   ├── scenario2_filename.json (Catalonia(2019, 2020) -> France(2019)) 
+        │   │   ├── scenario3_filename.json (Catalonia(2019), France(2019) -> Catalonia(2020))
         │   │   ├── ...
         │   │   ├── nrgb (B02 B03 B04 B08)
         │   │   │   ├── xxx{img_suffix}
@@ -181,8 +203,8 @@ class NpyPADDataset(Dataset):
         self.scenario = scenario
         assert self.mode in ['train', 'val', 'test'], \
             "variable mode should be 'train' or 'val' or 'test'"
-        assert self.scenario == 1 or self.scenario == 2, \
-            'variable scenario should be 1 or 2'
+        assert self.scenario == 1 or self.scenario == 2 or self.scenario == 3, \
+            'variable scenario should be 1 or 2 or 3.'
 
         with open(os.path.join(self.root_dir, f"scenario{self.scenario}_filename.json"), "r") as st_json:
             self.img_infos = json.load(st_json)[mode]
@@ -192,6 +214,8 @@ class NpyPADDataset(Dataset):
             self.transforms = RandomCrop(output_size[0])
         else:
             self.transforms = None
+
+        # self.select_randomstep = SelectRandomStep(self.start_month, self.end_month, delta_month=1)
 
         print('Rootdir: {}'.format(self.root_dir))
         print('Scenario: {}, MODE: {}, length of datasets: {}'.format(self.scenario, self.mode, len(self.img_infos)))
@@ -216,6 +240,10 @@ class NpyPADDataset(Dataset):
         annpath = os.path.join(self.ann_dir, self.img_infos[idx])
         ann = np.load(annpath)
 
+        # if self.mode == 'train':
+        #     img = self.select_randomstep(img)
+        # else:
+        #     img = img[self.start_month:self.end_month]
         img = img[self.start_month:self.end_month]
 
         if self.transforms:

@@ -145,7 +145,7 @@ def main():
                              help='The image bands to use. Must be space separated')
     parser.add_argument('--img_size', nargs='+', required=False, default=(64,64),
                              help='The size of the subpatch to use as model input. Must be space separated')
-    parser.add_argument('--scenario', type=int, choices=[1, 2], default=1,
+    parser.add_argument('--scenario', type=int, choices=[1, 2, 3], default=1,
                              help='scenario') 
     parser.add_argument('--start_month', type=int, default=4, choices=range(1, 12))
     parser.add_argument('--end_month', type=int, default=10, choices=range(1, 14))
