@@ -260,24 +260,17 @@ class EncoderDecoder(pl.LightningModule):
         tn = self.confusion_matrix.sum() - (fp + fn + tp)
 
         # Sensitivity, hit rate, recall, or true positive rate
-        tpr = tp / (tp + fn)
+        tpr = tp / (tp + fn + 1e-6)
         # Specificity or true negative rate
-        tnr = tn / (tn + fp)
+        tnr = tn / (tn + fp + 1e-6)
         # Precision or positive predictive value
-        ppv = tp / (tp + fp)
-        # Negative predictive value
-        npv = tn / (tn + fn)
-        # Fall out or false positive rate
-        fpr = fp / (fp + tn)
-        # False negative rate
-        fnr = fn / (tp + fn)
-        # False discovery rate
-        fdr = fp / (tp + fp)
+        ppv = tp / (tp + fp + 1e-6)
         # F1-score
-        f1 = (2 * ppv * tpr) / (ppv + tpr)
-
+        f1 = (2 * ppv * tpr) / (ppv + tpr + 1e-6)
         # Overall accuracy
-        accuracy = (tp + tn) / (tp + fp + fn + tn)
+        accuracy = (tp + tn) / (tp + fp + fn + tn + 1e-6)
+        # iou
+        iou = (tp) / (tp + fp + fn + 1e-6)
 
         # Export metrics in text file
         metrics_file = self.run_path / f"evaluation_metrics_epoch{self.checkpoint_epoch}.csv"
@@ -339,10 +332,27 @@ class EncoderDecoder(pl.LightningModule):
                 row += f',{i:.4f}'
             f.write(row + '\n')
 
-            row = 'weighted macro-f1'
+            row = "iou"
+            for i in iou:
+                row += f',{i:.4f}'
+            f.write(row + '\n')
+
+            row = 'weighted-f1 F1(W)'
             class_samples = self.confusion_matrix.sum(axis=1)
             weighted_f1 = ((f1 * class_samples) / class_samples.sum()).sum()
             f.write(row + f',{weighted_f1:.4f}\n')
+
+            row = 'macro-f1 F1(M)'
+            macro_f1 = np.mean(f1)
+            f.write(row + f',{macro_f1:.4f}\n')
+
+            row = 'micro-f1 F1(m)'
+            micro_f1 = (2 * np.sum(tp)) / (2 * np.sum(tp) + np.sum(fn) + np.sum(fp))
+            f.write(row + f',{micro_f1:.4f}\n')
+
+            row = 'mIoU'
+            miou = np.mean(iou)
+            f.write(row + f',{miou:.4f}\n')
 
         # Normalize each row of the confusion matrix because class imbalance is
         # high and visualization is difficult

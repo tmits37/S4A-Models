@@ -147,7 +147,7 @@ def main():
                              help='The size of the subpatch to use as model input. Must be space separated')
     parser.add_argument('--scenario', type=int, choices=[1, 2], default=1,
                              help='scenario') 
-    parser.add_argument('--start_month', type=int, default=4, choices=range(0, 12))
+    parser.add_argument('--start_month', type=int, default=4, choices=range(1, 12))
     parser.add_argument('--end_month', type=int, default=10, choices=range(1, 14))
 
     parser.add_argument('--num_workers', type=int, default=6, required=False,
@@ -200,6 +200,13 @@ def main():
         class_weights = {LINEAR_ENCODER[k]: v for k, v in CLASS_WEIGHTS.items()}
     else:
         class_weights = None
+
+    # define crop_encoding
+    crop_encoding_rev = {v: k for k, v in CROP_ENCODING.items()}
+    crop_encoding = {k: crop_encoding_rev[k] for k in LINEAR_ENCODER.keys() if k != 0}
+    crop_encoding[0] = 'Background/Other'
+    timestep = int(args.end_month - args.start_month)
+        
     if args.model == 'convlstm':
         args.img_size = [int(dim) for dim in args.img_size]
 
@@ -229,10 +236,6 @@ def main():
 
         if not args.train:
             # Load the model for testing
-            crop_encoding_rev = {v: k for k, v in CROP_ENCODING.items()}
-            crop_encoding = {k: crop_encoding_rev[k] for k in LINEAR_ENCODER.keys() if k != 0}
-            crop_encoding[0] = 'Background/Other'
-
             model = ConvLSTM.load_from_checkpoint(resume_from_checkpoint,
                                                   map_location=torch.device('cpu'),
                                                   run_path=run_path,
@@ -267,11 +270,6 @@ def main():
                              class_weights=class_weights)
 
         if not args.train:
-            # Load the model for testing
-            crop_encoding_rev = {v: k for k, v in CROP_ENCODING.items()}
-            crop_encoding = {k: crop_encoding_rev[k] for k in LINEAR_ENCODER.keys() if k != 0}
-            crop_encoding[0] = 'Background/Other'
-
             model = ConvSTAR.load_from_checkpoint(resume_from_checkpoint,
                                                   map_location=torch.device('cpu'),
                                                   run_path=run_path,
@@ -307,17 +305,15 @@ def main():
                          class_weights=class_weights, num_layers=3)
 
         if not args.train:
-            # Load the model for testing
-            crop_encoding_rev = {v: k for k, v in CROP_ENCODING.items()}
-            crop_encoding = {k: crop_encoding_rev[k] for k in LINEAR_ENCODER.keys() if k != 0}
-            crop_encoding[0] = 'Background/Other'
+            model = UNet.load_from_checkpoint(
+                resume_from_checkpoint,
+                map_location=torch.device('cpu'),
+                run_path=run_path,
+                linear_encoder=LINEAR_ENCODER,
+                crop_encoding=crop_encoding,
+                checkpoint_epoch=init_epoch,
+                num_layer=3)
 
-            model = UNet.load_from_checkpoint(resume_from_checkpoint,
-                                                  map_location=torch.device('cpu'),
-                                                  run_path=run_path,
-                                                  linear_encoder=LINEAR_ENCODER,
-                                                  crop_encoding=crop_encoding,
-                                                  checkpoint_epoch=init_epoch)
     elif args.model == 'tempcnn':
         args.img_size = (1, 1)
         args.bands = ['B03', 'B04', 'B08']
@@ -331,11 +327,6 @@ def main():
                         kernel_size=3, parcel_loss=args.parcel_loss, class_weights=class_weights)
 
         if not args.train:
-            # Load the model for testing
-            crop_encoding_rev = {v: k for k, v in CROP_ENCODING.items()}
-            crop_encoding = {k: crop_encoding_rev[k] for k in LINEAR_ENCODER.keys() if k != 0}
-            crop_encoding[0] = 'Background/Other'
-
             model = TempCNN.load_from_checkpoint(args.load_checkpoint,
                                                  map_location=torch.device('cpu'),
                                                  input_dim=3,
@@ -374,22 +365,17 @@ def main():
                         )
 
         if not args.train:
-            # Load the model for testing
-            crop_encoding_rev = {v: k for k, v in CROP_ENCODING.items()}
-            crop_encoding = {k: crop_encoding_rev[k] for k in LINEAR_ENCODER.keys() if k != 0}
-            crop_encoding[0] = 'Background/Other'
-
-            model = UTAE.load_from_checkpoint(resume_from_checkpoint,
-                                                  map_location=torch.device('cpu'),
-                                                  run_path=run_path,
-                                                  linear_encoder=LINEAR_ENCODER,
-                                                  crop_encoding=crop_encoding,
-                                                  checkpoint_epoch=init_epoch)
+            model = UTAE.load_from_checkpoint(
+                resume_from_checkpoint,
+                map_location=torch.device('cpu'),
+                run_path=run_path,
+                linear_encoder=LINEAR_ENCODER,
+                crop_encoding=crop_encoding,
+                checkpoint_epoch=init_epoch,
+                input_size=4)
 
     elif args.model == 'simvp':
-
         results_path = create_model_log_path(log_path, prefix, args.model)
-
         run_path, resume_from_checkpoint, max_epoch, init_epoch = \
             resume_or_start(results_path, args.resume, args.train, args.num_epochs, args.load_checkpoint)
 
@@ -397,7 +383,8 @@ def main():
                       LINEAR_ENCODER,
                       parcel_loss=args.parcel_loss,
                       class_weights=class_weights,
-                      shape_in = [6, 4, 64, 64],
+                      crop_encoding=crop_encoding,
+                      shape_in=[timestep,4,64,64],
                       hid_S=16,
                       hid_T=256,
                       N_S=4,
@@ -407,19 +394,20 @@ def main():
                       learning_rate=0.001)
         
         if not args.train:
-            # Load the model for testing
-            crop_encoding_rev = {v: k for k, v in CROP_ENCODING.items()}
-            crop_encoding = {k: crop_encoding_rev[k] for k in LINEAR_ENCODER.keys() if k != 0}
-            crop_encoding[0] = 'Background/Other'
-
-            model = model.load_from_checkpoint(resume_from_checkpoint,
-                                                    map_location=torch.device('cpu'),
-                                                    run_path=run_path,
-                                                    linear_encoder=LINEAR_ENCODER,
-                                                    crop_encoding=crop_encoding,
-                                                    checkpoint_epoch=init_epoch,
-                                                    class_weights = class_weights
-                                                    )
+            model = SimVP.load_from_checkpoint(
+                resume_from_checkpoint,
+                map_location=torch.device('cpu'),
+                run_path=run_path,
+                linear_encoder=LINEAR_ENCODER,
+                crop_encoding=crop_encoding,
+                class_weights=class_weights,
+                shape_in=[timestep,4,64,64],
+                hid_S=16,
+                hid_T=256,
+                N_S=4,
+                N_T=8,
+                incep_ker=[3,5,7,11], 
+                groups=8)
 
     # Create Data Modules
     dm = PADDataModule(
@@ -436,11 +424,8 @@ def main():
     )
 
     if args.train:
-        # TRAINING
-        # Setup to multi-GPUs
         dm.setup('fit')
-
-        # DEFAULT CALLBACKS used by the Trainer
+        # Early stopping
         # early_stopping = EarlyStopping('val_loss')
         callbacks.append(
             ModelCheckpoint(
@@ -470,14 +455,11 @@ def main():
                              strategy='ddp' if args.num_gpus > 1 else None,
                              plugins=[my_ddp]
                              )
-        # Train model
         trainer.fit(model, datamodule=dm)
-    else:
+
         # Setup to multi-GPUs
         dm.setup('test')
-
         my_ddp = DDPPlugin(find_unused_parameters=True)
-
         trainer = pl.Trainer(gpus=args.num_gpus,
                              num_nodes=args.num_nodes,
                              progress_bar_refresh_rate=1,
@@ -487,7 +469,23 @@ def main():
                              strategy='ddp' if args.num_gpus > 1 else None,
                              plugins=[my_ddp]
                              )
+        # Test model
+        model.eval()
+        trainer.test(model, datamodule=dm)
 
+    else:
+        # Setup to multi-GPUs
+        dm.setup('test')
+        my_ddp = DDPPlugin(find_unused_parameters=True)
+        trainer = pl.Trainer(gpus=args.num_gpus,
+                             num_nodes=args.num_nodes,
+                             progress_bar_refresh_rate=1,
+                             min_epochs=1,
+                             max_epochs=2,
+                             precision=32,
+                             strategy='ddp' if args.num_gpus > 1 else None,
+                             plugins=[my_ddp]
+                             )
         # Test model
         model.eval()
         trainer.test(model, datamodule=dm)

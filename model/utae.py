@@ -700,9 +700,6 @@ class UTAE(EncoderDecoder):
                             padding_mode="reflect",
                             )
 
-
-        # self.lossfunction = nn.NLLLoss(ignore_index=0)
-        # self.lossfunction = nn.CrossEntropyLoss(ignore_index=0)
         self.softmax = nn.LogSoftmax(dim=1)
         self.input_size = input_size
         self.save_hyperparameters()

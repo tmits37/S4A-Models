@@ -85,32 +85,6 @@ class Mid_Xnet(nn.Module):
         y = z.reshape(B, T, C, H, W)
         return y
 
-'''
-class SimVP(nn.Module):
-    def __init__(self, shape_in, hid_S=16, hid_T=256, N_S=4, N_T=8, incep_ker=[3,5,7,11], groups=8):
-        super(SimVP, self).__init__()
-        T, C, H, W = shape_in
-        self.enc = Encoder(C, hid_S, N_S)
-        self.hid = Mid_Xnet(T*hid_S, hid_T, N_T, incep_ker, groups)
-        self.dec = Decoder(hid_S, C, N_S)
-
-
-    def forward(self, x_raw):
-        B, T, C, H, W = x_raw.shape
-        x = x_raw.view(B*T, C, H, W)
-
-        embed, skip = self.enc(x)
-        _, C_, H_, W_ = embed.shape
-
-        z = embed.view(B, T, C_, H_, W_)
-        hid = self.hid(z)
-        hid = hid.reshape(B*T, C_, H_, W_)
-
-        Y = self.dec(hid, skip)
-        Y = Y.reshape(B, T, C, H, W)
-        return Y
-'''
-
 class SimVP(EncoderDecoder):
     def __init__(self, 
                  run_path,
@@ -142,7 +116,11 @@ class SimVP(EncoderDecoder):
         self.enc = Encoder(C, hid_S, N_S)
         self.hid = Mid_Xnet(T*hid_S, hid_T, N_T, incep_ker, groups)
         self.dec = Decoder(hid_S, C, N_S)
-        self.softmax = nn.Sequential(nn.Conv2d(4, self.num_discrete_labels, kernel_size=1), nn.LogSoftmax(dim=1))
+
+        self.softmax = nn.Sequential(nn.Conv2d(4, self.num_discrete_labels, kernel_size=1),
+                                     nn.LogSoftmax(dim=1))
+        self.save_hyperparameters()
+
 
     def forward(self, x_raw):
         
@@ -160,4 +138,5 @@ class SimVP(EncoderDecoder):
         Y = Y.reshape(B, T, C, H, W)
         Y = Y[:, 0, :, :, :]
         Y = torch.squeeze(Y, dim = 1)
+        
         return self.softmax(Y)
