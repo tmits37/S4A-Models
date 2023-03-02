@@ -1,12 +1,10 @@
 import os
 import json
 import numpy as np
-from typing import Tuple
 
 from torch.utils.data import Dataset
-from pycocotools.coco import COCO
 
-from .settings.config import RANDOM_SEED, BANDS, IMG_SIZE, REFERENCE_BAND, NORMALIZATION_DIV, LINEAR_ENCODER
+from .settings.config import IMG_SIZE, NORMALIZATION_DIV, LINEAR_ENCODER
 
 
 # IMG_SIZE = 366

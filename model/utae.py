@@ -309,7 +309,6 @@ class UTAEModule(nn.Module):
                 maps.append(out)
 
         if self.encoder:
-            print(out.shape)
             return out, maps
         else:
             out = self.out_conv(out)

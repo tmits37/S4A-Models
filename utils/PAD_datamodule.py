@@ -1,14 +1,10 @@
-import numpy as np
-import time
-import torch
 from typing import Any, Union
 from pathlib import Path
-from pycocotools.coco import COCO
 from torch.utils.data import DataLoader
 import pytorch_lightning as pl
 
 from .settings.config import RANDOM_SEED, IMG_SIZE
-from .PAD_dataset import PADDataset
+# from .PAD_dataset import PADDataset
 from .npy_dataset import NpyPADDataset
 
 # Set seed for everything

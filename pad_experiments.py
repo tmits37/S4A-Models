@@ -297,12 +297,20 @@ def main():
                     if int(epoch_lr[0]) == init_epoch:
                         init_learning_rate = float(epoch_lr[1])
 
-            model = UNet(run_path, LINEAR_ENCODER, learning_rate=init_learning_rate,
-                         parcel_loss=args.parcel_loss, class_weights=class_weights,
+            model = UNet(run_path, 
+                         LINEAR_ENCODER,
+                         learning_rate=init_learning_rate,
+                         parcel_loss=args.parcel_loss, 
+                         crop_encoding=crop_encoding,
+                         class_weights=class_weights,
                          num_layers=3)
         else:
-            model = UNet(run_path, LINEAR_ENCODER, parcel_loss=args.parcel_loss,
-                         class_weights=class_weights, num_layers=3)
+            model = UNet(run_path, 
+                         LINEAR_ENCODER,
+                         parcel_loss=args.parcel_loss,
+                         crop_encoding=crop_encoding,
+                         class_weights=class_weights, 
+                         num_layers=3)
 
         if not args.train:
             model = UNet.load_from_checkpoint(
@@ -354,6 +362,7 @@ def main():
                         learning_rate=init_learning_rate,
                         parcel_loss=args.parcel_loss,
                         class_weights=class_weights,
+                        crop_encoding=crop_encoding,
                         input_size=4
                         )
         else:
@@ -361,6 +370,7 @@ def main():
                         LINEAR_ENCODER,
                         parcel_loss=args.parcel_loss,
                         class_weights=class_weights,
+                        crop_encoding=crop_encoding,
                         input_size=4
                         )
 
