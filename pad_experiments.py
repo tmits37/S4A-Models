@@ -303,6 +303,7 @@ def main():
                          parcel_loss=args.parcel_loss, 
                          crop_encoding=crop_encoding,
                          class_weights=class_weights,
+                         timesteps=timestep,
                          num_layers=3)
         else:
             model = UNet(run_path, 
@@ -310,6 +311,7 @@ def main():
                          parcel_loss=args.parcel_loss,
                          crop_encoding=crop_encoding,
                          class_weights=class_weights, 
+                         timesteps=timestep,
                          num_layers=3)
 
         if not args.train:
@@ -320,6 +322,7 @@ def main():
                 linear_encoder=LINEAR_ENCODER,
                 crop_encoding=crop_encoding,
                 checkpoint_epoch=init_epoch,
+                timesteps=timestep,
                 num_layer=3)
 
     elif args.model == 'tempcnn':
