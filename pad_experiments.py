@@ -23,7 +23,6 @@ from pytorch_lightning.plugins import DDPPlugin
 import torch
 
 from utils.PAD_datamodule import PADDataModule
-from utils.tools import font_colors
 from utils.settings.config import RANDOM_SEED, CROP_ENCODING, LINEAR_ENCODER, CLASS_WEIGHTS, BANDS
 
 # Set seed for everything
@@ -448,7 +447,8 @@ def main():
                 dirpath=run_path / 'checkpoints',
                 monitor=monitor,
                 mode='min',
-                save_top_k=-1
+                save_top_k=-1,
+                every_n_train_steps=50,
             )
         )
 
@@ -459,7 +459,7 @@ def main():
                              progress_bar_refresh_rate=20,
                              min_epochs=1,
                              max_epochs=max_epoch + 1,
-                             check_val_every_n_epoch=1,
+                             check_val_every_n_epoch=10,
                              precision=32,
                              callbacks=callbacks,
                              logger=tb_logger,
