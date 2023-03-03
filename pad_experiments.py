@@ -164,12 +164,14 @@ def main():
         exit(1)
 
     # Try convert args.img_size to int tuple
-    if args.img_size is not None:
+    if args.img_size:
         try:
             args.img_size = tuple(map(int, args.img_size))
         except:
             print(f'argument img_size should be castable to int but instead "{args.img_size}" was given!')
             exit(1)
+    else:
+        args.img_size = (64,64)
 
     root_dir = Path(args.root_dir)
 
@@ -430,6 +432,7 @@ def main():
         linear_encoder=LINEAR_ENCODER,
         start_month=args.start_month,
         end_month=args.end_month,
+        img_size=args.img_size,
         batch_size=args.batch_size,
         num_workers=args.num_workers,
         binary_labels=args.binary_labels,

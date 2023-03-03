@@ -25,6 +25,7 @@ class PADDataModule(pl.LightningDataModule):
             linear_encoder: dict = None,
             start_month: int = 4,
             end_month: int = 10,
+            img_size: tuple = (64, 64),
             batch_size: int = 64,
             num_workers: int = 4,
             binary_labels: bool = False,
@@ -69,10 +70,9 @@ class PADDataModule(pl.LightningDataModule):
         self.end_month = end_month
         self.scenario = scenario
 
-        self.img_size = IMG_SIZE
+        self.img_size = img_size
 
     def setup(self, stage=None):
-        # called on every GPU
         # Create train/val/test loaders
         assert stage in ['fit', 'test'], f'Stage : "{stage}" must be fit or test!'
 
@@ -81,6 +81,7 @@ class PADDataModule(pl.LightningDataModule):
                                                band_mode=self.band_mode,
                                                start_month=self.start_month,
                                                end_month=self.end_month,
+                                               output_size=self.img_size,
                                                mode='train',
                                                return_parcels=self.return_parcels,
                                                scenario=self.scenario,
@@ -89,6 +90,7 @@ class PADDataModule(pl.LightningDataModule):
                                               band_mode=self.band_mode,
                                               start_month=self.start_month,
                                               end_month=self.end_month,
+                                              output_size=self.img_size,
                                               mode='val',
                                               return_parcels=self.return_parcels,
                                               scenario=self.scenario,
