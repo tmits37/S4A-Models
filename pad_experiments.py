@@ -155,6 +155,8 @@ def main():
                              help='Number of gpus to use (per node). Default 1')
     parser.add_argument('--num_nodes', type=int, default=1, required=False,
                              help='Number of nodes to use. Default 1')
+    parser.add_argument('--ignore_other_parcel', action='store_true', default=False, required=False,
+                             help='ignore other parcel or not')                             
 
     args = parser.parse_args()
 
@@ -285,6 +287,12 @@ def main():
         run_path, resume_from_checkpoint, max_epoch, init_epoch = \
             resume_or_start(results_path, args.resume, args.train, args.num_epochs, args.load_checkpoint)
 
+        if args.ignore_other_parcel:
+            linear_encoder = LINEAR_ENCODER
+            linear_encoder[1] = 12
+        else:
+            linear_encoder = LINEAR_ENCODER
+
         if args.train:
             callbacks += [
                 LearningRateMonitor(logging_interval='step')
@@ -299,7 +307,8 @@ def main():
                         init_learning_rate = float(epoch_lr[1])
 
             model = UNet(run_path, 
-                         LINEAR_ENCODER,
+                         # LINEAR_ENCODER,
+                         linear_encoder,
                          learning_rate=init_learning_rate,
                          parcel_loss=args.parcel_loss, 
                          crop_encoding=crop_encoding,
@@ -308,7 +317,8 @@ def main():
                          num_layers=3)
         else:
             model = UNet(run_path, 
-                         LINEAR_ENCODER,
+                         # LINEAR_ENCODER,
+                         linear_encoder,
                          parcel_loss=args.parcel_loss,
                          crop_encoding=crop_encoding,
                          class_weights=class_weights, 
@@ -320,7 +330,7 @@ def main():
                 resume_from_checkpoint,
                 map_location=torch.device('cpu'),
                 run_path=run_path,
-                linear_encoder=LINEAR_ENCODER,
+                linear_encoder=linear_encoder, # LINEAR_ENCODER,
                 crop_encoding=crop_encoding,
                 checkpoint_epoch=init_epoch,
                 timesteps=timestep,
@@ -435,7 +445,8 @@ def main():
         batch_size=args.batch_size,
         num_workers=args.num_workers,
         binary_labels=args.binary_labels,
-        return_parcels=args.parcel_loss
+        return_parcels=args.parcel_loss,
+        ignore_other_parcel=args.ignore_other_parcel,
     )
 
     if args.train:

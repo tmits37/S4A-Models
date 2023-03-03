@@ -29,7 +29,8 @@ class PADDataModule(pl.LightningDataModule):
             batch_size: int = 64,
             num_workers: int = 4,
             binary_labels: bool = False,
-            return_parcels: bool = False
+            return_parcels: bool = False,
+            ignore_other_parcel: bool = False,
     ) -> None:
         '''
         Parameters
@@ -71,6 +72,7 @@ class PADDataModule(pl.LightningDataModule):
         self.scenario = scenario
 
         self.img_size = img_size
+        self.ignore_other_parcel = ignore_other_parcel
 
     def setup(self, stage=None):
         # Create train/val/test loaders
@@ -85,6 +87,7 @@ class PADDataModule(pl.LightningDataModule):
                                                mode='train',
                                                return_parcels=self.return_parcels,
                                                scenario=self.scenario,
+                                               ignore_other_parcel=self.ignore_other_parcel,
                                                )
             self.dataset_eval = NpyPADDataset(root_dir=self.root_dir,
                                               band_mode=self.band_mode,
@@ -94,6 +97,7 @@ class PADDataModule(pl.LightningDataModule):
                                               mode='val',
                                               return_parcels=self.return_parcels,
                                               scenario=self.scenario,
+                                              ignore_other_parcel=self.ignore_other_parcel,
                                               )
 
         else:
@@ -104,7 +108,8 @@ class PADDataModule(pl.LightningDataModule):
                                               output_size=None, # (H, W) = (366, 366)
                                               mode='test',
                                               return_parcels=self.return_parcels,
-                                              scenario=self.scenario
+                                              scenario=self.scenario,
+                                              ignore_other_parcel=self.ignore_other_parcel,
                                               )
 
     def train_dataloader(self):

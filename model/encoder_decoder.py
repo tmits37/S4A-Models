@@ -47,9 +47,9 @@ class EncoderDecoder(pl.LightningModule):
                 self.lossfunction = nn.NLLLoss(ignore_index=0, weight=class_weights_tensor)
         else:
             if self.parcel_loss:
-                self.lossfunction = nn.NLLLoss(ignore_index=0, reduction='sum')
+                self.lossfunction = nn.NLLLoss(ignore_index=12, reduction='sum')
             else:
-                self.lossfunction = nn.NLLLoss(ignore_index=0)
+                self.lossfunction = nn.NLLLoss(ignore_index=12)
         
         self.crop_encoding = crop_encoding
         self.run_path = Path(run_path)

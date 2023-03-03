@@ -13,17 +13,17 @@ from .settings.config import IMG_SIZE, NORMALIZATION_DIV, LINEAR_ENCODER
 
 # # --- For the selected classes, uncomment this section ---
 # SELECTED_CLASSES = [
-#     110,   # 'Wheat'
-#     120,   # 'Maize'
-#     140,   # 'Sorghum'
-#     150,   # 'Barley'
-#     160,   # 'Rye'
-#     170,   # 'Oats'
-#     330,   # 'Grapes'
-#     435,   # 'Rapeseed'
-#     438,   # 'Sunflower'
-#     510,   # 'Potatoes'
-#     770,   # 'Peas'
+#1     110,   # 'Wheat'
+#2     120,   # 'Maize'
+#3     140,   # 'Sorghum'
+#4     150,   # 'Barley'
+#5     160,   # 'Rye'
+#6     170,   # 'Oats'
+#7     330,   # 'Grapes'
+#8     435,   # 'Rapeseed'
+#9     438,   # 'Sunflower'
+#10     510,   # 'Potatoes'
+#11    770,   # 'Peas'
 # ]
 
 # LINEAR_ENCODER = {val: i + 1 for i, val in enumerate(sorted(SELECTED_CLASSES))}
@@ -143,6 +143,7 @@ class NpyPADDataset(Dataset):
             mode: str = 'test',
             scenario: int = 1,
             min_max_normalize: bool = True,
+            ignore_other_parcel: bool = False,
     ) -> None:
         '''
         Args:
@@ -199,6 +200,7 @@ class NpyPADDataset(Dataset):
 
         self.mode = mode
         self.scenario = scenario
+        self.ignore_other_parcel = ignore_other_parcel
         assert self.mode in ['train', 'val', 'test'], \
             "variable mode should be 'train' or 'val' or 'test'"
         assert self.scenario == 1 or self.scenario == 2 or self.scenario == 3, \
@@ -281,9 +283,11 @@ class NpyPADDataset(Dataset):
             for crop_id, linear_id in self.linear_encoder.items():
                 _[ann == crop_id] = linear_id
             ann = _
-
-        # # Map all classes NOT in linear encoder's values to 0
-        ann[~np.isin(ann, list(self.linear_encoder.values()))] = 0
+        if self.ignore_other_parcel:
+            # Map all classes NOT in linear encoder's values to 0
+            ann[~np.isin(ann, list(self.linear_encoder.values()))] = len(self.linear_encoder)
+        else:
+            ann[~np.isin(ann, list(self.linear_encoder.values()))] = 0
 
         out['medians'] = img.astype(np.float32)
         out['labels'] = ann.astype(np.int64)
