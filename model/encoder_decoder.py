@@ -47,13 +47,12 @@ class EncoderDecoder(pl.LightningModule):
                 self.lossfunction = nn.NLLLoss(ignore_index=0, weight=class_weights_tensor)
         else:
             if self.parcel_loss:
-                self.lossfunction = nn.NLLLoss(ignore_index=12, reduction='sum')
+                self.lossfunction = nn.NLLLoss(reduction='sum')
             else:
-                self.lossfunction = nn.NLLLoss(ignore_index=12)
+                self.lossfunction = nn.NLLLoss()
         
         self.crop_encoding = crop_encoding
         self.run_path = Path(run_path)
-
         # self.save_hyperparameters()
 
     def forward(self):
@@ -151,8 +150,8 @@ class EncoderDecoder(pl.LightningModule):
 
     def slide_inference(self, img):
 
-        h_stride, w_stride = 32, 32
-        h_crop, w_crop = 64, 64
+        h_stride, w_stride = 96, 96
+        h_crop, w_crop = 128, 128
         batch_size, timestamp, channel, h_img, w_img = img.size()
         num_classes = max(self.linear_encoder.values()) + 1
         h_grids = max(h_img - h_crop + h_stride - 1, 0) // h_stride + 1

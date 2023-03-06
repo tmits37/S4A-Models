@@ -451,17 +451,17 @@ def main():
 
     if args.train:
         dm.setup('fit')
-        # Early stopping
-        # early_stopping = EarlyStopping('val_loss')
         callbacks.append(
             ModelCheckpoint(
                 dirpath=run_path / 'checkpoints',
                 monitor=monitor,
                 mode='min',
                 save_top_k=-1,
-                every_n_train_steps=50,
+                every_n_epochs=10,
             )
         )
+        # EarlyStopping
+        # callbacks.append(EarlyStopping('val_loss', patience=12))
 
         tb_logger = pl_loggers.TensorBoardLogger(run_path / 'tensorboard')
         my_ddp = DDPPlugin(find_unused_parameters=True)
@@ -470,12 +470,11 @@ def main():
                              progress_bar_refresh_rate=20,
                              min_epochs=1,
                              max_epochs=max_epoch + 1,
-                             check_val_every_n_epoch=10,
+                             check_val_every_n_epoch=1,
                              precision=32,
                              callbacks=callbacks,
                              logger=tb_logger,
                              gradient_clip_val=10.0,
-                             # early_stop_callback=early_stopping,
                              checkpoint_callback=True,
                              resume_from_checkpoint=resume_from_checkpoint,
                              fast_dev_run=args.devtest,
