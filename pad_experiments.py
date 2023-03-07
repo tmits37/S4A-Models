@@ -396,6 +396,7 @@ def main():
                 linear_encoder=LINEAR_ENCODER,
                 crop_encoding=crop_encoding,
                 checkpoint_epoch=init_epoch,
+                parcel_loss=args.parcel_loss,
                 input_size=4)
 
     elif args.model == 'simvp':
@@ -425,6 +426,7 @@ def main():
                 linear_encoder=LINEAR_ENCODER,
                 crop_encoding=crop_encoding,
                 class_weights=class_weights,
+                parcel_loss=args.parcel_loss,
                 shape_in=[timestep,4,64,64],
                 hid_S=16,
                 hid_T=256,
