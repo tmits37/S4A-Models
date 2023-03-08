@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import importlib.util
 import sys
@@ -49,8 +50,8 @@ REFERENCE_BAND = 'B02'
 
 # File to load Mappings from (aka native str to english str)
 # You can replace the path to your own mappings, be sure to name mapping dictionary as 'CLASSES_MAPPING'
-MAPPINGS_FILE = Path('utils/settings/mappings/mappings_cat.py')
-#MAPPINGS_FILE = Path('utils/settings/mappings/mappings_fr.py')
+absolute_path = os.path.dirname(__file__)
+MAPPINGS_FILE = Path(os.path.join(absolute_path, 'mappings/mappings_cat.py'))
 module = load_module(MAPPINGS_FILE, MAPPINGS_FILE.stem)
 CLASSES_MAPPING = module.CLASSES_MAPPING
 RENAME = module.RENAME
@@ -58,7 +59,7 @@ SAMPLE_TILES = module.SAMPLE_TILES
 COUNTRY_CODE = module.COUNTRY_CODE
 
 # File to load Encodings from (aka english str to ints)
-ENCODINGS_FILE = Path('utils/settings/mappings/encodings_en.py')
+ENCODINGS_FILE = Path(os.path.join(absolute_path, 'mappings/encodings_en.py'))
 module = load_module(ENCODINGS_FILE, ENCODINGS_FILE.stem)
 CROP_ENCODING = module.CROP_ENCODING
 
