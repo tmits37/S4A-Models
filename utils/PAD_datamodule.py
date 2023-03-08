@@ -31,6 +31,7 @@ class PADDataModule(pl.LightningDataModule):
             binary_labels: bool = False,
             return_parcels: bool = False,
             ignore_other_parcel: bool = False,
+            classwise_binary_labels: int = None,
     ) -> None:
         '''
         Parameters
@@ -61,6 +62,7 @@ class PADDataModule(pl.LightningDataModule):
         self.batch_size = batch_size
         self.num_workers = num_workers
         self.binary_labels = binary_labels
+        self.classwise_binary_labels = classwise_binary_labels
 
         # Initialize parameters required for Patches Dataset
         self.band_mode = band_mode
@@ -88,6 +90,8 @@ class PADDataModule(pl.LightningDataModule):
                                                return_parcels=self.return_parcels,
                                                scenario=self.scenario,
                                                ignore_other_parcel=self.ignore_other_parcel,
+                                               binary_labels=self.binary_labels,
+                                               classwise_binary_labels=self.classwise_binary_labels,
                                                )
             self.dataset_eval = NpyPADDataset(root_dir=self.root_dir,
                                               band_mode=self.band_mode,
@@ -98,6 +102,8 @@ class PADDataModule(pl.LightningDataModule):
                                               return_parcels=self.return_parcels,
                                               scenario=self.scenario,
                                               ignore_other_parcel=self.ignore_other_parcel,
+                                              binary_labels=self.binary_labels,
+                                              classwise_binary_labels=self.classwise_binary_labels,
                                               )
 
         else:
@@ -110,6 +116,8 @@ class PADDataModule(pl.LightningDataModule):
                                               return_parcels=self.return_parcels,
                                               scenario=self.scenario,
                                               ignore_other_parcel=self.ignore_other_parcel,
+                                              binary_labels=self.binary_labels,
+                                              classwise_binary_labels=self.classwise_binary_labels,
                                               )
 
     def train_dataloader(self):

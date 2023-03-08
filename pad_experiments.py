@@ -157,6 +157,8 @@ def main():
                              help='Number of nodes to use. Default 1')
     parser.add_argument('--ignore_other_parcel', action='store_true', default=False, required=False,
                              help='ignore other parcel or not')                             
+    parser.add_argument('--classwise_binary_labels', type=int, default=None, required=False,
+                            choices=[110, 120, 140, 150, 160, 170, 330, 435, 438, 510, 770])
 
     args = parser.parse_args()
 
@@ -194,7 +196,7 @@ def main():
     callbacks = []
     monitor = 'val_loss'
 
-    if args.binary_labels:
+    if args.binary_labels or args.classwise_binary_labels:
         n_classes = 2
     else:
         n_classes = len(list(CROP_ENCODING.values())) + 1
@@ -449,6 +451,7 @@ def main():
         binary_labels=args.binary_labels,
         return_parcels=args.parcel_loss,
         ignore_other_parcel=args.ignore_other_parcel,
+        classwise_binary_labels=args.classwise_binary_labels,
     )
 
     if args.train:

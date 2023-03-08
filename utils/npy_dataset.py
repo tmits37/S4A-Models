@@ -144,6 +144,7 @@ class NpyPADDataset(Dataset):
             scenario: int = 1,
             min_max_normalize: bool = True,
             ignore_other_parcel: bool = False,
+            classwise_binary_labels: int = None,
     ) -> None:
         '''
         Args:
@@ -177,6 +178,8 @@ class NpyPADDataset(Dataset):
 
         self.return_parcels = return_parcels
         self.binary_labels = binary_labels
+        if self.binary_labels:
+            print('Binary labels: cropland or not')
 
         if output_size is None:
             output_size = [IMG_SIZE, IMG_SIZE]
@@ -201,6 +204,11 @@ class NpyPADDataset(Dataset):
         self.mode = mode
         self.scenario = scenario
         self.ignore_other_parcel = ignore_other_parcel
+
+        self.classwise_binary_labels = classwise_binary_labels
+        if self.classwise_binary_labels:
+            print('Claswise Binary Labels: ', self.classwise_binary_labels)
+
         assert self.mode in ['train', 'val', 'test'], \
             "variable mode should be 'train' or 'val' or 'test'"
         assert self.scenario == 1 or self.scenario == 2 or self.scenario == 3, \
@@ -261,6 +269,12 @@ class NpyPADDataset(Dataset):
         else:
             img = np.divide(img, NORMALIZATION_DIV) #  / 10000
         return img
+
+    def _classwise_binary_ann(self, ann):
+        _ = np.zeros_like(ann)
+        _[ann == self.classwise_binary_labels] = 1
+        ann = _
+        return ann
     
     def __getitem__(self, idx: int) -> dict:
         img, ann = self.prepare_train_img(idx)
@@ -276,6 +290,8 @@ class NpyPADDataset(Dataset):
         if self.binary_labels:
             # Map 0: background class, 1: parcel
             ann[ann != 0] = 1
+        elif self.classwise_binary_labels:
+            ann = self._classwise_binary_ann(ann)
         else:
             # Map labels to 0-len(unique(crop_id)) see config
             # labels = np.vectorize(self.linear_encoder.get)(labels)
@@ -283,11 +299,11 @@ class NpyPADDataset(Dataset):
             for crop_id, linear_id in self.linear_encoder.items():
                 _[ann == crop_id] = linear_id
             ann = _
-        if self.ignore_other_parcel:
-            # Map all classes NOT in linear encoder's values to 0
-            ann[~np.isin(ann, list(self.linear_encoder.values()))] = len(self.linear_encoder)
-        else:
-            ann[~np.isin(ann, list(self.linear_encoder.values()))] = 0
+            if self.ignore_other_parcel:
+                # Map all classes NOT in linear encoder's values to 0
+                ann[~np.isin(ann, list(self.linear_encoder.values()))] = len(self.linear_encoder)
+            else:
+                ann[~np.isin(ann, list(self.linear_encoder.values()))] = 0
 
         out['medians'] = img.astype(np.float32)
         out['labels'] = ann.astype(np.int64)
