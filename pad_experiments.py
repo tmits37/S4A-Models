@@ -198,20 +198,30 @@ def main():
 
     if args.binary_labels or args.classwise_binary_labels:
         n_classes = 2
-    else:
-        n_classes = len(list(CROP_ENCODING.values())) + 1
+        linear_encoder = dict()
+        linear_encoder[0] = 0
 
-    if args.weighted_loss:
-        class_weights = {LINEAR_ENCODER[k]: v for k, v in CLASS_WEIGHTS.items()}
+        if args.classwise_binary_labels:
+            linear_encoder[args.classwise_binary_labels] = 1
+        else:
+            linear_encoder[100] = 1 # 100:Cereal
     else:
-        class_weights = None
+        linear_encoder = LINEAR_ENCODER
+        n_classes = len(list(CROP_ENCODING.values())) + 1
 
     # define crop_encoding
     crop_encoding_rev = {v: k for k, v in CROP_ENCODING.items()}
-    crop_encoding = {k: crop_encoding_rev[k] for k in LINEAR_ENCODER.keys() if k != 0}
+    crop_encoding = {k: crop_encoding_rev[k] for k in linear_encoder.keys() if k != 0}
     crop_encoding[0] = 'Background/Other'
+
+    if args.weighted_loss:
+        class_weights = {linear_encoder[k]: v for k, v in CLASS_WEIGHTS.items()}
+    else:
+        class_weights = None
+
     timestep = int(args.end_month - args.start_month)
-        
+
+    # TODO: Refactoring for loading models.        
     if args.model == 'convlstm':
         args.img_size = [int(dim) for dim in args.img_size]
 
@@ -233,10 +243,10 @@ def main():
                     if int(epoch_lr[0]) == init_epoch:
                         init_learning_rate = float(epoch_lr[1])
 
-            model = ConvLSTM(run_path, LINEAR_ENCODER, learning_rate=init_learning_rate,
+            model = ConvLSTM(run_path, linear_encoder, learning_rate=init_learning_rate,
                              parcel_loss=args.parcel_loss, class_weights=class_weights)
         else:
-            model = ConvLSTM(run_path, LINEAR_ENCODER, parcel_loss=args.parcel_loss,
+            model = ConvLSTM(run_path, linear_encoder, parcel_loss=args.parcel_loss,
                              class_weights=class_weights)
 
         if not args.train:
@@ -244,7 +254,7 @@ def main():
             model = ConvLSTM.load_from_checkpoint(resume_from_checkpoint,
                                                   map_location=torch.device('cpu'),
                                                   run_path=run_path,
-                                                  linear_encoder=LINEAR_ENCODER,
+                                                  linear_encoder=linear_encoder,
                                                   crop_encoding=crop_encoding,
                                                   checkpoint_epoch=init_epoch)
     elif args.model == 'convstar':
@@ -268,17 +278,17 @@ def main():
                     if int(epoch_lr[0]) == init_epoch:
                         init_learning_rate = float(epoch_lr[1])
 
-            model = ConvSTAR(run_path, LINEAR_ENCODER, learning_rate=init_learning_rate,
+            model = ConvSTAR(run_path, linear_encoder, learning_rate=init_learning_rate,
                              parcel_loss=args.parcel_loss, class_weights=class_weights)
         else:
-            model = ConvSTAR(run_path, LINEAR_ENCODER, parcel_loss=args.parcel_loss,
+            model = ConvSTAR(run_path, linear_encoder, parcel_loss=args.parcel_loss,
                              class_weights=class_weights)
 
         if not args.train:
             model = ConvSTAR.load_from_checkpoint(resume_from_checkpoint,
                                                   map_location=torch.device('cpu'),
                                                   run_path=run_path,
-                                                  linear_encoder=LINEAR_ENCODER,
+                                                  linear_encoder=linear_encoder,
                                                   crop_encoding=crop_encoding,
                                                   checkpoint_epoch=init_epoch)
     elif args.model == 'unet':
@@ -290,10 +300,10 @@ def main():
             resume_or_start(results_path, args.resume, args.train, args.num_epochs, args.load_checkpoint)
 
         if args.ignore_other_parcel:
-            linear_encoder = LINEAR_ENCODER
+            linear_encoder = linear_encoder
             linear_encoder[1] = 12
         else:
-            linear_encoder = LINEAR_ENCODER
+            linear_encoder = linear_encoder
 
         if args.train:
             callbacks += [
@@ -309,7 +319,6 @@ def main():
                         init_learning_rate = float(epoch_lr[1])
 
             model = UNet(run_path, 
-                         # LINEAR_ENCODER,
                          linear_encoder,
                          learning_rate=init_learning_rate,
                          parcel_loss=args.parcel_loss, 
@@ -319,7 +328,6 @@ def main():
                          num_layers=3)
         else:
             model = UNet(run_path, 
-                         # LINEAR_ENCODER,
                          linear_encoder,
                          parcel_loss=args.parcel_loss,
                          crop_encoding=crop_encoding,
@@ -347,7 +355,7 @@ def main():
         run_path, resume_from_checkpoint, max_epoch, init_epoch = \
             resume_or_start(results_path, args.resume, args.train, args.num_epochs, args.load_checkpoint)
 
-        model = TempCNN(3, n_classes, args.window_len, run_path, LINEAR_ENCODER,
+        model = TempCNN(3, n_classes, args.window_len, run_path, linear_encoder,
                         kernel_size=3, parcel_loss=args.parcel_loss, class_weights=class_weights)
 
         if not args.train:
@@ -357,7 +365,7 @@ def main():
                                                  nclasses=n_classes,
                                                  sequence_length=args.window_len,
                                                  run_path=run_path,
-                                                 linear_encoder=LINEAR_ENCODER,
+                                                 linear_encoder=linear_encoder,
                                                  crop_encoding=crop_encoding)
 
     elif args.model == 'utae':
@@ -374,7 +382,7 @@ def main():
                         init_learning_rate = float(epoch_lr[1])
 
             model = UTAE(run_path, 
-                        LINEAR_ENCODER,
+                        linear_encoder,
                         learning_rate=init_learning_rate,
                         parcel_loss=args.parcel_loss,
                         class_weights=class_weights,
@@ -383,7 +391,7 @@ def main():
                         )
         else:
             model = UTAE(run_path, 
-                        LINEAR_ENCODER,
+                        linear_encoder,
                         parcel_loss=args.parcel_loss,
                         class_weights=class_weights,
                         crop_encoding=crop_encoding,
@@ -395,7 +403,7 @@ def main():
                 resume_from_checkpoint,
                 map_location=torch.device('cpu'),
                 run_path=run_path,
-                linear_encoder=LINEAR_ENCODER,
+                linear_encoder=linear_encoder,
                 crop_encoding=crop_encoding,
                 checkpoint_epoch=init_epoch,
                 parcel_loss=args.parcel_loss,
@@ -407,7 +415,7 @@ def main():
             resume_or_start(results_path, args.resume, args.train, args.num_epochs, args.load_checkpoint)
 
         model = SimVP(run_path, 
-                      LINEAR_ENCODER,
+                      linear_encoder,
                       parcel_loss=args.parcel_loss,
                       class_weights=class_weights,
                       crop_encoding=crop_encoding,
@@ -425,7 +433,7 @@ def main():
                 resume_from_checkpoint,
                 map_location=torch.device('cpu'),
                 run_path=run_path,
-                linear_encoder=LINEAR_ENCODER,
+                linear_encoder=linear_encoder,
                 crop_encoding=crop_encoding,
                 class_weights=class_weights,
                 parcel_loss=args.parcel_loss,
@@ -442,7 +450,7 @@ def main():
         root_dir=args.root_dir,
         scenario=args.scenario,
         band_mode=args.band_mode,
-        linear_encoder=LINEAR_ENCODER,
+        linear_encoder=linear_encoder,
         start_month=args.start_month,
         end_month=args.end_month,
         img_size=args.img_size,

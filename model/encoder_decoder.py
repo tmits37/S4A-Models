@@ -250,7 +250,8 @@ class EncoderDecoder(pl.LightningModule):
     def test_epoch_end(self, outputs):
         self.confusion_matrix = self.confusion_matrix.cpu().detach().numpy()
 
-        self.confusion_matrix = self.confusion_matrix[1:, 1:]  # Drop zero label
+        if self.linear_encoder != 2: # if not Binary or classwise_binary_labels
+            self.confusion_matrix = self.confusion_matrix[1:, 1:]  # Drop zero label
 
         # Calculate metrics and confusion matrix
         fp = self.confusion_matrix.sum(axis=0) - np.diag(self.confusion_matrix)
@@ -271,7 +272,7 @@ class EncoderDecoder(pl.LightningModule):
         # iou
         iou = (tp) / (tp + fp + fn + 1e-6)
 
-        # Export metrics in text file
+        # Export metrics in text 
         metrics_file = self.run_path / f"evaluation_metrics_epoch{self.checkpoint_epoch}.csv"
 
         # Delete file if present
@@ -288,22 +289,22 @@ class EncoderDecoder(pl.LightningModule):
 
             row = 'tn'
             for i in tn:
-                row += f',{i}'
+                row += f',{int(i)}'
             f.write(row + '\n')
 
             row = 'tp'
             for i in tp:
-                row += f',{i}'
+                row += f',{int(i)}'
             f.write(row + '\n')
 
             row = 'fn'
             for i in fn:
-                row += f',{i}'
+                row += f',{int(i)}'
             f.write(row + '\n')
 
             row = 'fp'
             for i in fp:
-                row += f',{i}'
+                row += f',{int(i)}'
             f.write(row + '\n')
 
             row = "specificity"
