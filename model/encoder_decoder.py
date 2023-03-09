@@ -250,7 +250,7 @@ class EncoderDecoder(pl.LightningModule):
     def test_epoch_end(self, outputs):
         self.confusion_matrix = self.confusion_matrix.cpu().detach().numpy()
 
-        if self.linear_encoder != 2: # if not Binary or classwise_binary_labels
+        if len(self.linear_encoder) != 2: # if not Binary or classwise_binary_labels
             self.confusion_matrix = self.confusion_matrix[1:, 1:]  # Drop zero label
 
         # Calculate metrics and confusion matrix
@@ -283,7 +283,8 @@ class EncoderDecoder(pl.LightningModule):
         with open(metrics_file, "a") as f:
             row = 'Class'
             for k in sorted(self.linear_encoder.keys()):
-                if k == 0: continue
+                if len(self.linear_encoder) != 2:
+                    if k == 0: continue
                 row += f',{k} ({self.crop_encoding[k]})'
             f.write(row + '\n')
 
