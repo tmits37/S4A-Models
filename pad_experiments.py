@@ -209,6 +209,11 @@ def main():
         linear_encoder = LINEAR_ENCODER
         n_classes = len(list(CROP_ENCODING.values())) + 1
 
+    if args.band_mode == 'rdeg':
+        input_channels = 10
+    else:
+        input_channels = 4
+
     # define crop_encoding
     crop_encoding_rev = {v: k for k, v in CROP_ENCODING.items()}
     crop_encoding = {k: crop_encoding_rev[k] for k in linear_encoder.keys() if k != 0}
@@ -325,6 +330,7 @@ def main():
                          crop_encoding=crop_encoding,
                          class_weights=class_weights,
                          timesteps=timestep,
+                         in_channels=input_channels,
                          num_layers=3)
         else:
             model = UNet(run_path, 
@@ -333,6 +339,7 @@ def main():
                          crop_encoding=crop_encoding,
                          class_weights=class_weights, 
                          timesteps=timestep,
+                         in_channels=input_channels,
                          num_layers=3)
 
         if not args.train:
@@ -344,6 +351,7 @@ def main():
                 crop_encoding=crop_encoding,
                 checkpoint_epoch=init_epoch,
                 timesteps=timestep,
+                in_channels=input_channels,
                 num_layer=3)
 
     elif args.model == 'tempcnn':
@@ -387,7 +395,7 @@ def main():
                         parcel_loss=args.parcel_loss,
                         class_weights=class_weights,
                         crop_encoding=crop_encoding,
-                        input_size=4
+                        input_size=input_channels
                         )
         else:
             model = UTAE(run_path, 
@@ -395,7 +403,7 @@ def main():
                         parcel_loss=args.parcel_loss,
                         class_weights=class_weights,
                         crop_encoding=crop_encoding,
-                        input_size=4
+                        input_size=input_channels
                         )
 
         if not args.train:
@@ -407,7 +415,7 @@ def main():
                 crop_encoding=crop_encoding,
                 checkpoint_epoch=init_epoch,
                 parcel_loss=args.parcel_loss,
-                input_size=4)
+                input_size=input_channels)
 
     elif args.model == 'simvp':
         results_path = create_model_log_path(log_path, prefix, args.model)
@@ -419,7 +427,7 @@ def main():
                       parcel_loss=args.parcel_loss,
                       class_weights=class_weights,
                       crop_encoding=crop_encoding,
-                      shape_in=[timestep,4,64,64],
+                      shape_in=[timestep,input_channels,64,64],
                       hid_S=16,
                       hid_T=256,
                       N_S=4,
@@ -437,7 +445,7 @@ def main():
                 crop_encoding=crop_encoding,
                 class_weights=class_weights,
                 parcel_loss=args.parcel_loss,
-                shape_in=[timestep,4,64,64],
+                shape_in=[timestep,input_channels,64,64],
                 hid_S=16,
                 hid_T=256,
                 N_S=4,

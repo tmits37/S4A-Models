@@ -1,3 +1,4 @@
+import cv2
 import os
 import json
 import numpy as np
@@ -172,6 +173,9 @@ class NpyPADDataset(Dataset):
 
         elif band_mode == 'rdeg':
             self.bands = ['B02', 'B03', 'B04', 'B08', 'B05', 'B06', 'B07', 'B8A', 'B11', 'B12']
+
+        elif band_mode == 'rdeg_only':
+            self.bands = ['B05', 'B06', 'B07', 'B8A', 'B11', 'B12']
         
         else:
             raise RuntimeError
@@ -241,7 +245,12 @@ class NpyPADDataset(Dataset):
 
             rdegpath = os.path.join(os.path.dirname(self.img_dir), 'rdeg', self.img_infos[idx])
             rdeg = np.load(rdegpath)
-            img = np.stack([img, rdeg], axis=1)
+            t, c, h, w = rdeg.shape
+            rdeg = rdeg.reshape(t*c, h, w)
+
+            rdeg = cv2.resize(rdeg.transpose(1,2,0), (366,366), interpolation=cv2.INTER_CUBIC).transpose(2,0,1)
+            rdeg = rdeg.reshape(t, c, 366, 366)
+            img = np.concatenate([img, rdeg], axis=1)
         else:
             raise RuntimeError
 

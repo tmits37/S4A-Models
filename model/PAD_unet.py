@@ -115,6 +115,7 @@ class UNet(EncoderDecoder):
                  class_weights=None, 
                  crop_encoding=None, 
                  checkpoint_epoch=None,
+                 in_channels=4,
                  timesteps=8,
                  num_layers=3):
         '''
@@ -156,7 +157,7 @@ class UNet(EncoderDecoder):
                  checkpoint_epoch=checkpoint_epoch)
 
 
-        input_channels = 4 * timesteps   # bands * time steps
+        input_channels = in_channels * timesteps   # bands * time steps
         feats = 64
 
         # Encoder
